@@ -15,6 +15,16 @@ const prisma = new PrismaClient();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// --- LIMPIEZA AUTOMÁTICA DE SESIÓN SI EXISTE UN ERROR DE CONEXIÓN ---
+const authPath = path.join(__dirname, '.wwebjs_auth');
+const cachePath = path.join(__dirname, '.wwebjs_cache');
+
+if (process.env.RESET_WA_SESSION === 'true') {
+  console.log('🧹 Limpiando sesión previa de WhatsApp...');
+  if (fs.existsSync(authPath)) fs.rmSync(authPath, { recursive: true, force: true });
+  if (fs.existsSync(cachePath)) fs.rmSync(cachePath, { recursive: true, force: true });
+}
+
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -77,8 +87,8 @@ app.get('/qr', (req, res) => {
       <html>
         <head><title>Estado de WhatsApp</title></head>
         <body style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background-color:#f3f4f6;">
-          <h2>🟢 El bot ya se encuentra conectado o aún no se ha generado el código QR.</h2>
-          <p>Si la sesión vence o se desconecta, refresca esta página.</p>
+          <h2>🟢 El bot ya se encuentra conectado o aún está cargando el nuevo código QR.</h2>
+          <p>Refresca la página en unos segundos si estás vinculando por primera vez.</p>
         </body>
       </html>
     `);
@@ -565,12 +575,13 @@ function generateOrderPDFBuffer(order) {
   });
 }
 
-// --- WHATSAPP CLIENT ---
+// --- WHATSAPP CLIENT CONFIGURADO PARA RENDER ---
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
-    protocolTimeout: 120000,
+    protocolTimeout: 240000,
+    handleSIGINT: false,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
