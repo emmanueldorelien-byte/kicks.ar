@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="es" id="html-root">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KICKS | Panel de Administración Total</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+  <style>
+    body, div, table, tr, td, th, input, select, button, textarea {
+      transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-slate-100 p-6 min-h-screen font-sans">
+  <div class="max-w-7xl mx-auto">
+    
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+      <div>
+        <h1 class="text-3xl font-black tracking-tight text-gray-900 dark:text-white">KICKS Control Center</h1>
+        <p class="text-gray-500 dark:text-slate-400 text-sm">Gestión de Pedidos, Devoluciones, Ventas Totales y Catálogo</p>
+      </div>
+      
+      <div class="flex items-center gap-3 flex-wrap">
+        <button id="theme-toggle-btn" onclick="toggleDarkMode()" class="px-3.5 py-2 font-bold text-xs rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-amber-400 hover:bg-gray-50 dark:hover:bg-slate-700 shadow-sm flex items-center gap-2 transition">
+          <span id="theme-toggle-icon">🌙</span>
+          <span id="theme-toggle-text">Modo Nocturno</span>
+        </button>
+
+        <div class="flex bg-gray-200 dark:bg-slate-800 p-1 rounded-xl">
+          <button id="tab-btn-orders" onclick="switchTab('orders')" class="px-4 py-2 font-bold text-xs rounded-lg bg-white dark:bg-slate-700 shadow text-gray-900 dark:text-white transition">
+            📦 Pedidos
+          </button>
+          <button id="tab-btn-returns" onclick="switchTab('returns')" class="px-4 py-2 font-bold text-xs rounded-lg text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition">
+            🔄 Devoluciones y Cambios
+          </button>
+          <button id="tab-btn-products" onclick="switchTab('products')" class="px-4 py-2 font-bold text-xs rounded-lg text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition">
+            👟 Productos y Promos
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETAS DE MÉTRICAS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-emerald-100">Total Vendido</p>
+            <h2 id="total-revenue-card" class="text-2xl font-black mt-1">$ 0,00</h2>
+          </div>
+          <div class="bg-white/20 p-2.5 rounded-xl text-lg">💰</div>
+        </div>
+        
+        <div class="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-xs">
+          <span class="text-emerald-100 font-medium">Filtrar por:</span>
+          <select id="metrics-filter" onchange="loadMetrics()" class="bg-white/20 text-white font-bold py-1 px-2.5 rounded-lg outline-none cursor-pointer border border-white/30 backdrop-blur-sm">
+            <option value="all" class="text-gray-900">Todo el Historial</option>
+            <option value="today" class="text-gray-900">Hoy (Día)</option>
+            <option value="month" class="text-gray-900">Este Mes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-400">Ventas Concretadas</p>
+          <h2 id="total-sales-count" class="text-2xl font-black text-gray-900 dark:text-white mt-1">0 pedidos</h2>
+        </div>
+        <div class="bg-emerald-50 dark:bg-emerald-950/50 p-3 rounded-xl text-xl">✅</div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-400">Total Registros</p>
+          <h2 id="total-orders-count" class="text-2xl font-black text-gray-900 dark:text-white mt-1">0 órdenes</h2>
+        </div>
+        <div class="bg-gray-100 dark:bg-slate-700/50 p-3 rounded-xl text-xl">📋</div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 1: PEDIDOS -->
+    <div id="section-orders" class="space-y-4">
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60 flex items-center gap-3">
+        <span class="text-gray-400">🔍</span>
+        <input type="text" id="order-search" oninput="filterOrders()" placeholder="Buscar por ID, Teléfono, Productos, Destinatario o Dirección..." class="w-full text-sm outline-none bg-transparent text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-slate-500">
+      </div>
+
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
+                <th class="p-4">Orden ID</th>
+                <th class="p-4">Cliente (Teléfono)</th>
+                <th class="p-4">Productos / Monto</th>
+                <th class="p-4">Pago</th>
+                <th class="p-4">Estado</th>
+                <th class="p-4 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="orders-list" class="divide-y divide-gray-100 dark:divide-slate-700/60 text-sm">
+              <tr><td colspan="6" class="p-8 text-center text-gray-400 dark:text-slate-400">Cargando pedidos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 2: DEVOLUCIONES Y CAMBIOS -->
+    <div id="section-returns" class="hidden space-y-4">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60 overflow-hidden">
+        <div class="p-4 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+          <h3 class="font-bold text-gray-900 dark:text-white">Solicitudes de Cambios y Devoluciones</h3>
+          <button onclick="loadReturns()" class="text-xs bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 text-gray-800 dark:text-slate-200 px-3 py-1.5 rounded-lg font-bold">🔄 Recargar</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
+                <th class="p-4">Orden ID</th>
+                <th class="p-4">Tipo</th>
+                <th class="p-4">Teléfono</th>
+                <th class="p-4">Estado Producto</th>
+                <th class="p-4">Estado Solicitud</th>
+                <th class="p-4 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="returns-list" class="divide-y divide-gray-100 dark:divide-slate-700/60 text-sm">
+              <tr><td colspan="6" class="p-8 text-center text-gray-400 dark:text-slate-400">Cargando solicitudes...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 3: PRODUCTOS -->
+    <div id="section-products" class="hidden space-y-6">
+      
+      <!-- Formulario Nuevo Producto -->
+      <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">➕ Cargar Nuevo Producto</h2>
+        <form id="product-form" onsubmit="saveProduct(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Nombre del Producto</label>
+            <input type="text" id="p-name" required placeholder="Ej: Zapatillas Urban Nitro" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Categoría</label>
+            <select id="p-category" required class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white font-semibold">
+              <option value="PERFUMES">🌸 Perfumes</option>
+              <option value="MOCHILAS_CARTERAS">🎒 Mochilas y Carteras</option>
+              <option value="MODA_MUJER">👗 Moda Mujer</option>
+              <option value="JOYA_ACCESORIOS">💍 Joya & Accesorios</option>
+              <option value="BAZAR">🏠 Bazar</option>
+              <option value="CALZADOS_IMPORTADOS" selected>👟 Calzados Importados</option>
+              <option value="TECNOLOGIA">🎧 Tecnología</option>
+              <option value="VARIOS">🛍️ Varios</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Precio (ARS)</label>
+            <input type="number" id="p-price" required placeholder="45000" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Descripción Detallada del Producto</label>
+            <textarea id="p-description" rows="2" placeholder="Describe los detalles del producto..." class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white resize-none"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Stock Inicial</label>
+            <input type="number" id="p-stock" required placeholder="10" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Talles / Variantes (separados por coma)</label>
+            <input type="text" id="p-sizes" placeholder="38, 39, 40, 41" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Colores (separados por coma)</label>
+            <input type="text" id="p-colors" placeholder="Negro, Blanco, Rojo" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Envío Estimado (En Minutos)</label>
+            <input type="number" id="p-shipping" placeholder="60" value="60" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+
+          <!-- Media URLs -->
+          <div class="md:col-span-2 bg-gray-50 dark:bg-slate-900/60 p-3 rounded-xl border dark:border-slate-700 space-y-2">
+            <div>
+              <label class="block text-xs font-bold text-gray-800 dark:text-slate-200 mb-1">📁 Subir Archivos (Imágenes o Videos)</label>
+              <input type="file" id="p-file-input" multiple accept="image/*,video/*" class="w-full border dark:border-slate-600 rounded-lg p-1.5 text-xs bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-300 cursor-pointer">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-800 dark:text-slate-200 mb-1">🔗 URLs de Imágenes (separadas por coma)</label>
+              <input type="text" id="p-images" placeholder="https://imagen1.jpg, https://imagen2.jpg" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-800 dark:text-slate-200 mb-1">🎬 URL de Video Corto (MP4 / WebM)</label>
+              <input type="text" id="p-videourl" placeholder="https://ejemplo.com/video-demo.mp4" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Tipo de Promoción</label>
+            <select id="p-promo" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+              <option value="NONE">Sin Promoción</option>
+              <option value="TWO_FOR_ONE">🔥 Llevá 2x1</option>
+              <option value="PERCENTAGE">% Descuento Directo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">% Descuento (Si aplica)</label>
+            <input type="number" id="p-discount" placeholder="15" value="0" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+
+          <!-- CHECKBOXES DE DESTACADOS -->
+          <div class="flex items-center gap-6 pt-4 md:col-span-2 flex-wrap">
+            <label class="flex items-center gap-2 text-xs font-bold text-amber-500 dark:text-amber-400 cursor-pointer">
+              <input type="checkbox" id="p-featured" class="rounded"> ⭐ Producto Destacado (Carrusel)
+            </label>
+            <label class="flex items-center gap-2 text-xs font-bold text-rose-600 dark:text-rose-400 cursor-pointer">
+              <input type="checkbox" id="p-hotsale" class="rounded"> 🔥 Hot Sale
+            </label>
+            <label class="flex items-center gap-2 text-xs font-bold text-gray-900 dark:text-slate-200 cursor-pointer">
+              <input type="checkbox" id="p-blackfriday" class="rounded"> 🖤 Black Friday
+            </label>
+          </div>
+
+          <div class="md:col-span-3 flex justify-end">
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm shadow transition">
+              Guardar Producto
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tabla Catálogo -->
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60 overflow-hidden">
+        <h3 class="p-4 font-bold text-gray-900 dark:text-white border-b dark:border-slate-700">Catálogo Actual</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-gray-50 dark:bg-slate-900/50 border-b dark:border-slate-700 text-xs font-bold text-gray-400 dark:text-slate-400 uppercase">
+                <th class="p-4">Producto</th>
+                <th class="p-4">Categoría</th>
+                <th class="p-4">Precio</th>
+                <th class="p-4">Envío</th>
+                <th class="p-4">Estado</th>
+                <th class="p-4">Promoción / Destacados</th>
+                <th class="p-4 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="products-list" class="divide-y divide-gray-100 dark:divide-slate-700/60 text-sm">
+              <tr><td colspan="7" class="p-8 text-center text-gray-400 dark:text-slate-400">Cargando productos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL EDICIÓN COMPLETA -->
+  <div id="edit-product-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-transparent dark:border-slate-700">
+      <div class="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-3">
+        <h3 class="text-xl font-bold text-gray-900 dark:text-white">✏️ Editar Producto Completo</h3>
+        <button onclick="closeEditModal()" class="text-gray-400 dark:text-slate-400 font-bold text-xl hover:text-gray-600 dark:hover:text-white">&times;</button>
+      </div>
+
+      <form id="edit-product-form" onsubmit="submitProductEdit(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <input type="hidden" id="edit-p-id">
+        
+        <div class="md:col-span-2">
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Nombre del Producto</label>
+          <input type="text" id="edit-p-name" required class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Descripción del Producto</label>
+          <textarea id="edit-p-description" rows="2" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white resize-none"></textarea>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Categoría</label>
+          <select id="edit-p-category" required class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white font-semibold">
+            <option value="PERFUMES">🌸 Perfumes</option>
+            <option value="MOCHILAS_CARTERAS">🎒 Mochilas y Carteras</option>
+            <option value="MODA_MUJER">👗 Moda Mujer</option>
+            <option value="JOYA_ACCESORIOS">💍 Joya & Accesorios</option>
+            <option value="BAZAR">🏠 Bazar</option>
+            <option value="CALZADOS_IMPORTADOS">👟 Calzados Importados</option>
+            <option value="TECNOLOGIA">🎧 Tecnología</option>
+            <option value="VARIOS">🛍️ Varios</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Precio (ARS)</label>
+          <input type="number" id="edit-p-price" required class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Stock</label>
+          <input type="number" id="edit-p-stock" required class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Envío Estimado (Minutos)</label>
+          <input type="number" id="edit-p-shipping" required class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Talles / Variantes</label>
+          <input type="text" id="edit-p-sizes" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Colores (separados por coma)</label>
+          <input type="text" id="edit-p-colors" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+        </div>
+
+        <div class="md:col-span-2 bg-gray-50 dark:bg-slate-900/60 p-3 rounded-xl border dark:border-slate-700 space-y-2">
+          <div>
+            <label class="block font-bold text-gray-800 dark:text-slate-200 mb-1">📁 Subir Archivos (Imágenes o Videos)</label>
+            <input type="file" id="edit-p-file-input" multiple accept="image/*,video/*" class="w-full border dark:border-slate-600 rounded-lg p-1.5 text-xs bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-300 cursor-pointer">
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-800 dark:text-slate-200 mb-1">🔗 URLs de Imágenes (separadas por coma)</label>
+            <input type="text" id="edit-p-images" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-800 dark:text-slate-200 mb-1">🎬 URL de Video Corto (MP4 / WebM)</label>
+            <input type="text" id="edit-p-videourl" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">Tipo de Promoción</label>
+          <select id="edit-p-promo" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+            <option value="NONE">Sin Promoción</option>
+            <option value="TWO_FOR_ONE">🔥 Llevá 2x1</option>
+            <option value="PERCENTAGE">% Descuento Directo</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 dark:text-slate-300 mb-1">% Descuento</label>
+          <input type="number" id="edit-p-discount" class="w-full border dark:border-slate-600 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 dark:text-white">
+        </div>
+
+        <div class="md:col-span-2 flex flex-wrap gap-4 pt-2">
+          <label class="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-400 cursor-pointer">
+            <input type="checkbox" id="edit-p-available" class="rounded"> ✅ Disponible en Tienda
+          </label>
+          <label class="flex items-center gap-2 font-bold text-amber-500 dark:text-amber-400 cursor-pointer">
+            <input type="checkbox" id="edit-p-featured" class="rounded"> ⭐ Producto Destacado
+          </label>
+          <label class="flex items-center gap-2 font-bold text-rose-600 dark:text-rose-400 cursor-pointer">
+            <input type="checkbox" id="edit-p-hotsale" class="rounded"> 🔥 Hot Sale
+          </label>
+          <label class="flex items-center gap-2 font-bold text-gray-900 dark:text-slate-200 cursor-pointer">
+            <input type="checkbox" id="edit-p-blackfriday" class="rounded"> 🖤 Black Friday
+          </label>
+        </div>
+
+        <div class="md:col-span-2 flex justify-end gap-2 mt-4 pt-3 border-t dark:border-slate-700">
+          <button type="button" onclick="closeEditModal()" class="bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-200 font-bold py-2 px-4 rounded-xl">Cancelar</button>
+          <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-xl">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Detalle General -->
+  <div id="detail-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-transparent dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-3">
+        <h3 class="text-xl font-bold text-gray-900 dark:text-white" id="modal-title">Detalle</h3>
+        <button onclick="closeModal()" class="text-gray-400 dark:text-slate-400 font-bold text-xl hover:text-gray-600 dark:hover:text-white">&times;</button>
+      </div>
+      <div id="modal-content" class="space-y-3 text-sm text-gray-700 dark:text-slate-300"></div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="closeModal()" class="bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-200 font-bold py-2 px-4 rounded-xl">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let globalOrders = [];
+    let globalProducts = [];
+    let globalReturns = [];
+
+    function initTheme() {
+      const isDark = localStorage.getItem('kicks_admin_theme') === 'dark';
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        updateThemeButton(true);
+      } else {
+        document.documentElement.classList.remove('dark');
+        updateThemeButton(false);
+      }
+    }
+
+    function toggleDarkMode() {
+      const isDarkNow = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('kicks_admin_theme', isDarkNow ? 'dark' : 'light');
+      updateThemeButton(isDarkNow);
+    }
+
+    function updateThemeButton(isDark) {
+      const icon = document.getElementById('theme-toggle-icon');
+      const text = document.getElementById('theme-toggle-text');
+      if (icon && text) {
+        icon.innerText = isDark ? '☀️' : '🌙';
+        text.innerText = isDark ? 'Modo Diurno' : 'Modo Nocturno';
+      }
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function switchTab(tab) {
+      document.getElementById('section-orders').classList.add('hidden');
+      document.getElementById('section-returns').classList.add('hidden');
+      document.getElementById('section-products').classList.add('hidden');
+
+      document.getElementById('tab-btn-orders').className = 'px-4 py-2 font-bold text-xs rounded-lg text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition';
+      document.getElementById('tab-btn-returns').className = 'px-4 py-2 font-bold text-xs rounded-lg text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition';
+      document.getElementById('tab-btn-products').className = 'px-4 py-2 font-bold text-xs rounded-lg text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition';
+
+      if (tab === 'orders') {
+        document.getElementById('section-orders').classList.remove('hidden');
+        document.getElementById('tab-btn-orders').className = 'px-4 py-2 font-bold text-xs rounded-lg bg-white dark:bg-slate-700 shadow text-gray-900 dark:text-white transition';
+        loadOrders();
+      } else if (tab === 'returns') {
+        document.getElementById('section-returns').classList.remove('hidden');
+        document.getElementById('tab-btn-returns').className = 'px-4 py-2 font-bold text-xs rounded-lg bg-white dark:bg-slate-700 shadow text-gray-900 dark:text-white transition';
+        loadReturns();
+      } else {
+        document.getElementById('section-products').classList.remove('hidden');
+        document.getElementById('tab-btn-products').className = 'px-4 py-2 font-bold text-xs rounded-lg bg-white dark:bg-slate-700 shadow text-gray-900 dark:text-white transition';
+        loadProducts();
+      }
+    }
+
+    async function loadMetrics() {
+      try {
+        const filter = document.getElementById('metrics-filter')?.value || 'all';
+        const res = await fetch(`/api/orders/metrics?filter=${filter}`);
+        const metrics = await res.json();
+        
+        const formattedTotal = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(metrics.totalRevenue || 0);
+        document.getElementById('total-revenue-card').innerText = formattedTotal;
+        document.getElementById('total-sales-count').innerText = `${metrics.totalOrders || 0} ventas`;
+      } catch (err) {
+        console.error('Error al cargar métricas:', err);
+      }
+    }
+
+    async function loadOrders() {
+      loadMetrics();
+      const res = await fetch('/api/orders');
+      globalOrders = await res.json();
+      document.getElementById('total-orders-count').innerText = `${globalOrders.length} órdenes`;
+      renderOrders(globalOrders);
+    }
+
+    async function loadReturns() {
+      try {
+        const res = await fetch('/api/returns');
+        globalReturns = await res.json();
+        renderReturns(globalReturns);
+      } catch (err) {
+        console.error('Error al cargar devoluciones:', err);
+      }
+    }
+
+    function renderReturns(returns) {
+      const container = document.getElementById('returns-list');
+      if (!returns || returns.length === 0) {
+        container.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-400 dark:text-slate-400">No hay solicitudes de cambios o devoluciones.</td></tr>`;
+        return;
+      }
+
+      container.innerHTML = returns.map(r => {
+        let statusBadge = '';
+        switch(r.status) {
+          case 'APPROVED_AWAITING_PAYMENT': statusBadge = '<span class="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold px-2 py-0.5 rounded text-xs">Esperando Pago Envío</span>'; break;
+          case 'PAYMENT_IN_REVIEW': statusBadge = '<span class="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-bold px-2 py-0.5 rounded text-xs">Pago Envío en Revisión</span>'; break;
+          case 'SHIPPED': statusBadge = '<span class="bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold px-2 py-0.5 rounded text-xs">🚚 Envío Despachado</span>'; break;
+          case 'DELIVERED': statusBadge = '<span class="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-2 py-0.5 rounded text-xs">🎉 Entregado / Completado</span>'; break;
+          case 'REJECTED': statusBadge = '<span class="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold px-2 py-0.5 rounded text-xs">Rechazado</span>'; break;
+          default: statusBadge = '<span class="bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-400 font-bold px-2 py-0.5 rounded text-xs">Pendiente Revisión</span>';
+        }
+
+        const typeBadge = r.type === 'CAMBIO' 
+          ? '<span class="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 font-bold px-2 py-0.5 rounded text-xs">🔄 CAMBIO</span>'
+          : '<span class="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold px-2 py-0.5 rounded text-xs">↩️ DEVOLUCIÓN</span>';
+
+        const safePhone = escapeHTML(r.phone ? r.phone.replace('@c.us','').replace('@lid','') : 'N/A');
+
+        return `
+          <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition">
+            <td class="p-4 font-mono font-bold text-gray-900 dark:text-white">#${escapeHTML(r.orderId.slice(0, 8))}</td>
+            <td class="p-4">${typeBadge}</td>
+            <td class="p-4 text-gray-800 dark:text-slate-200">${safePhone}</td>
+            <td class="p-4 text-gray-700 dark:text-slate-300 font-medium">${escapeHTML(r.productCondition)}</td>
+            <td class="p-4">${statusBadge}</td>
+            <td class="p-4 text-center">
+              <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                <button onclick="openReturnDetailModal('${r.id}')" class="bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 font-semibold py-1 px-2.5 rounded-lg text-xs">👁️ Ver Todo</button>
+                
+                ${r.status === 'PENDING_REVIEW' ? `
+                  <button onclick="approveReturn('${r.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-2.5 rounded-lg text-xs">✅ Aprobar</button>
+                  <button onclick="rejectReturn('${r.id}')" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1 px-2.5 rounded-lg text-xs">❌ Rechazar</button>
+                ` : ''}
+
+                <select onchange="handleReturnStatusChange('${r.id}', this.value); this.value='';" class="bg-gray-800 dark:bg-slate-900 text-white font-semibold py-1 px-2 rounded-lg text-xs cursor-pointer">
+                  <option value="">⚙️ Estado...</option>
+                  <option value="SHIPPED">🚚 Notificar Envío</option>
+                  <option value="DELIVERED">🎉 Notificar Entregado</option>
+                </select>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openReturnDetailModal(returnId) {
+      const r = globalReturns.find(item => item.id === returnId);
+      if (!r) return;
+
+      let productImgHtml = r.imageUrl 
+        ? `<div class="mt-2"><p class="font-bold text-xs mb-1">Foto del Producto enviada por el cliente:</p><img src="${r.imageUrl}" class="max-h-56 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm mx-auto"></div>`
+        : `<p class="text-xs text-gray-400 italic mt-1">No se adjuntó foto del producto.</p>`;
+
+      let receiptImgHtml = r.shippingReceiptUrl 
+        ? `<div class="mt-2"><p class="font-bold text-xs mb-1">Comprobante de Pago de Envío:</p><img src="${r.shippingReceiptUrl}" class="max-h-56 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm mx-auto"></div>`
+        : '';
+
+      document.getElementById('modal-title').innerText = `Detalle de ${r.type} - Orden #${r.orderId.slice(0, 8)}`;
+      document.getElementById('modal-content').innerHTML = `
+        <div class="bg-gray-50 dark:bg-slate-900/60 p-3 rounded-xl border dark:border-slate-700 space-y-1 text-xs">
+          <p><strong>Teléfono:</strong> ${escapeHTML(r.phone.replace('@c.us',''))}</p>
+          <p><strong>Estado del Producto:</strong> ${escapeHTML(r.productCondition)}</p>
+          <p><strong>Motivo indicado:</strong> ${escapeHTML(r.reason)}</p>
+          <p><strong>Costo Envío Asignado:</strong> $${r.shippingCost || 0}</p>
+          <p><strong>Estado Actual:</strong> ${escapeHTML(r.status)}</p>
+        </div>
+        ${productImgHtml}
+        ${receiptImgHtml}
+      `;
+      document.getElementById('detail-modal').classList.remove('hidden');
+    }
+
+    async function handleReturnStatusChange(requestId, newStatus) {
+      if (!newStatus) return;
+      const res = await fetch('/api/returns/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, status: newStatus })
+      });
+
+      if (res.ok) {
+        alert('✅ Estado actualizado y cliente notificado por WhatsApp.');
+        loadReturns();
+      }
+    }
+
+    async function approveReturn(requestId) {
+      const shippingCost = prompt('Ingresa el costo del envío para la gestión (ARS):', '3500');
+      if (shippingCost === null) return;
+
+      const res = await fetch('/api/returns/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, shippingCost })
+      });
+
+      if (res.ok) {
+        alert('✅ Solicitud aprobada y cliente notificado por WhatsApp con el costo de envío.');
+        loadReturns();
+      } else {
+        alert('Error al aprobar la solicitud.');
+      }
+    }
+
+    async function rejectReturn(requestId) {
+      const reason = prompt('Ingresa el motivo del rechazo:');
+      if (reason === null) return;
+
+      const res = await fetch('/api/returns/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, reason })
+      });
+
+      if (res.ok) {
+        alert('❌ Solicitud rechazada y cliente notificado.');
+        loadReturns();
+      } else {
+        alert('Error al rechazar la solicitud.');
+      }
+    }
+
+    function filterOrders() {
+      const query = document.getElementById('order-search').value.toLowerCase();
+      const filtered = globalOrders.filter(o => 
+        (o.id && o.id.toLowerCase().includes(query)) ||
+        (o.phone && o.phone.toLowerCase().includes(query)) ||
+        (o.recipientName && o.recipientName.toLowerCase().includes(query)) ||
+        (o.itemsSummary && o.itemsSummary.toLowerCase().includes(query)) ||
+        (o.address && o.address.toLowerCase().includes(query))
+      );
+      renderOrders(filtered);
+    }
+
+    function renderOrders(orders) {
+      const container = document.getElementById('orders-list');
+      if (!orders || orders.length === 0) {
+        container.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-400 dark:text-slate-400">No se encontraron pedidos.</td></tr>`;
+        return;
+      }
+
+      container.innerHTML = orders.map(o => {
+        let statusBadge = '';
+        switch(o.status) {
+          case 'APPROVED': statusBadge = '<span class="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-2.5 py-1 rounded-full text-xs">Aprobado</span>'; break;
+          case 'REJECTED': statusBadge = '<span class="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-bold px-2.5 py-1 rounded-full text-xs">Rechazado</span>'; break;
+          case 'SHIPPED': statusBadge = '<span class="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-bold px-2.5 py-1 rounded-full text-xs">Enviado</span>'; break;
+          case 'RESCHEDULED': statusBadge = '<span class="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 font-bold px-2.5 py-1 rounded-full text-xs">Reprogramado</span>'; break;
+          case 'DELIVERED': statusBadge = '<span class="bg-gray-900 text-white dark:bg-slate-700 dark:text-slate-100 font-bold px-2.5 py-1 rounded-full text-xs">Entregado</span>'; break;
+          case 'CANCELLED': statusBadge = '<span class="bg-gray-200 text-gray-700 dark:bg-slate-800 dark:text-slate-300 font-bold px-2.5 py-1 rounded-full text-xs">Cancelado</span>'; break;
+          default: statusBadge = '<span class="bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400 font-bold px-2.5 py-1 rounded-full text-xs">Pendiente Pago</span>';
+        }
+
+        const safePhone = escapeHTML(o.phone ? o.phone.replace('@c.us','').replace('@lid','') : 'N/A');
+        
+        let items = [];
+        try { items = JSON.parse(o.itemsSummary || '[]'); } catch(e) {}
+        const itemsText = items.map(i => `${i.name} (Talle ${i.size})`).join(', ') || 'N/A';
+        const formattedTotal = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(o.totalAmount || 0);
+
+        return `
+          <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition">
+            <td class="p-4 font-mono font-bold text-gray-900 dark:text-white">#${escapeHTML(o.id.slice(0, 8))}</td>
+            <td class="p-4 text-gray-800 dark:text-slate-200">${safePhone}</td>
+            <td class="p-4 font-semibold text-gray-800 dark:text-slate-200">${escapeHTML(itemsText)} <span class="block text-xs font-bold text-emerald-600 dark:text-emerald-400">Total: ${formattedTotal}</span></td>
+            <td class="p-4 text-gray-700 dark:text-slate-300">${escapeHTML(o.payment)}</td>
+            <td class="p-4">${statusBadge}</td>
+            <td class="p-4 text-center">
+              <div class="flex items-center justify-center gap-1.5">
+                <button onclick="openDetailModal('${o.id}')" class="bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 font-semibold py-1 px-2.5 rounded-lg text-xs">👁️ Detalle</button>
+                <select onchange="handleStatusChange('${o.id}', this.value); this.value='';" class="bg-gray-800 dark:bg-slate-900 text-white font-semibold py-1 px-2 rounded-lg text-xs cursor-pointer">
+                  <option value="">⚙️ Estado...</option>
+                  <option value="APPROVED">✅ Aprobar</option>
+                  <option value="SHIPPED">🚚 Enviado</option>
+                  <option value="RESCHEDULED">📅 Reprogramado</option>
+                  <option value="DELIVERED">🎉 Entregado</option>
+                  <option value="CANCELLED">❌ Cancelar</option>
+                  <option value="REJECTED">🚫 Denegar</option>
+                </select>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function handleStatusChange(orderId, newStatus) {
+      if (!newStatus) return;
+      let customMessage = '';
+      if (newStatus === 'RESCHEDULED') customMessage = prompt('Motivo o fecha de entrega:');
+      if (newStatus === 'CANCELLED') customMessage = prompt('Motivo de cancelación:');
+      
+      const endpoint = newStatus === 'APPROVED' ? '/api/orders/approve' : (newStatus === 'REJECTED' ? '/api/orders/reject' : '/api/orders/update-status');
+      
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, status: newStatus, customMessage, reason: customMessage })
+      });
+
+      if (res.ok) {
+        alert('✅ Estado actualizado y cliente notificado por WhatsApp.');
+        loadOrders();
+      }
+    }
+
+    async function loadProducts() {
+      const res = await fetch('/api/products');
+      globalProducts = await res.json();
+      const container = document.getElementById('products-list');
+
+      container.innerHTML = globalProducts.map(p => {
+        const isAvailable = p.isAvailable !== false;
+        
+        let statusTag = `<button onclick="toggleAvailability('${p.id}')" class="px-2.5 py-1 rounded-full text-xs font-bold transition ${isAvailable ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 hover:bg-emerald-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 hover:bg-rose-200'}"><span>${isAvailable ? '🟢 Disponible' : '🔴 Pausado'}</span></button>`;
+
+        let badges = [];
+        if (p.isFeatured) badges.push('<span class="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-bold">⭐ Destacado</span>');
+        if (p.isHotSale) badges.push('<span class="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 text-[10px] px-1.5 py-0.5 rounded font-bold">🔥 Hot Sale</span>');
+        if (p.isBlackFriday) badges.push('<span class="bg-gray-900 text-white dark:bg-slate-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🖤 Black Friday</span>');
+        if (p.promoType === 'TWO_FOR_ONE') badges.push('<span class="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] px-1.5 py-0.5 rounded font-bold">2x1</span>');
+        if (p.promoType === 'PERCENTAGE') badges.push(`<span class="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 text-[10px] px-1.5 py-0.5 rounded font-bold">-${p.discountPercent}%</span>`);
+
+        return `
+          <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition">
+            <td class="p-4 font-bold text-gray-900 dark:text-white">
+              <div class="flex items-center gap-2">
+                <span>${escapeHTML(p.name)}</span>
+                ${p.videoUrl ? `<a href="${escapeHTML(p.videoUrl)}" target="_blank" class="text-xs bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 px-1.5 py-0.5 rounded font-bold hover:underline">🎬 Ver Video</a>` : ''}
+              </div>
+              ${p.description ? `<p class="text-[11px] text-gray-500 font-normal truncate max-w-xs mt-0.5">${escapeHTML(p.description)}</p>` : ''}
+            </td>
+            <td class="p-4"><span class="bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-bold px-2 py-1 rounded-lg">${escapeHTML(p.category || 'CALZADOS_IMPORTADOS')}</span></td>
+            <td class="p-4 font-bold text-gray-900 dark:text-white">$${p.price}</td>
+            <td class="p-4 text-gray-700 dark:text-slate-300">${p.shippingMinutes || 60} min</td>
+            <td class="p-4">${statusTag}</td>
+            <td class="p-4">
+              <div class="flex flex-wrap gap-1">
+                ${badges.length > 0 ? badges.join(' ') : '<span class="text-gray-400 dark:text-slate-500 text-xs">Sin promo</span>'}
+              </div>
+            </td>
+            <td class="p-4 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <button onclick="openEditModal('${p.id}')" class="bg-gray-900 dark:bg-slate-700 hover:bg-black dark:hover:bg-slate-600 text-white font-bold py-1.5 px-3 rounded-xl text-xs flex items-center gap-1 shadow-sm">
+                  ✏️ Editar
+                </button>
+                <button onclick="deleteProduct('${p.id}', '${escapeHTML(p.name)}')" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-3 rounded-xl text-xs flex items-center gap-1 shadow-sm transition">
+                  🗑️ Eliminar
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function toggleAvailability(productId) {
+      try {
+        const res = await fetch(`/api/products/${productId}/toggle-availability`, { method: 'PATCH' });
+        if (res.ok) loadProducts();
+      } catch (e) {
+        alert('Error cambiando disponibilidad');
+      }
+    }
+
+    async function deleteProduct(productId, productName) {
+      if (!confirm(`⚠️ ¿Estás seguro de que deseas eliminar permanentemente "${productName}"?`)) return;
+
+      try {
+        const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('🗑️ Producto eliminado correctamente.');
+          loadProducts();
+        }
+      } catch (err) {
+        alert('Ocurrió un error al intentar eliminar el producto.');
+      }
+    }
+
+    async function uploadSelectedFiles(fileInputId) {
+      const fileInput = document.getElementById(fileInputId);
+      if (!fileInput || !fileInput.files || fileInput.files.length === 0) return [];
+
+      const formData = new FormData();
+      for (let i = 0; i < fileInput.files.length; i++) {
+        formData.append('localImages', fileInput.files[i]);
+      }
+
+      const res = await fetch('/api/upload-images', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Error subiendo los archivos');
+      const data = await res.json();
+      return data.urls || [];
+    }
+
+    async function saveProduct(e) {
+      e.preventDefault();
+      try {
+        const uploadedFiles = await uploadSelectedFiles('p-file-input');
+        const rawUrls = document.getElementById('p-images').value.split(',').map(u => u.trim()).filter(Boolean);
+        const finalImages = [...uploadedFiles.filter(u => !u.endsWith('.mp4') && !u.endsWith('.webm')), ...rawUrls];
+        
+        let videoUrlVal = document.getElementById('p-videourl').value;
+        const uploadedVideo = uploadedFiles.find(u => u.endsWith('.mp4') || u.endsWith('.webm'));
+        if (uploadedVideo) videoUrlVal = uploadedVideo;
+
+        const body = {
+          name: document.getElementById('p-name').value,
+          category: document.getElementById('p-category').value,
+          price: document.getElementById('p-price').value,
+          description: document.getElementById('p-description').value,
+          stock: document.getElementById('p-stock').value,
+          sizes: document.getElementById('p-sizes').value,
+          colors: document.getElementById('p-colors').value,
+          shippingMinutes: document.getElementById('p-shipping').value,
+          images: finalImages,
+          videoUrl: videoUrlVal,
+          promoType: document.getElementById('p-promo').value,
+          discountPercent: document.getElementById('p-discount').value,
+          isFeatured: document.getElementById('p-featured').checked,
+          isHotSale: document.getElementById('p-hotsale').checked,
+          isBlackFriday: document.getElementById('p-blackfriday').checked,
+          isAvailable: true
+        };
+
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+          alert('✅ Producto guardado correctamente.');
+          document.getElementById('product-form').reset();
+          loadProducts();
+        }
+      } catch (err) {
+        alert('⚠️ Error al procesar o guardar el producto.');
+      }
+    }
+
+    function openEditModal(productId) {
+      const p = globalProducts.find(item => item.id === productId);
+      if (!p) return;
+
+      document.getElementById('edit-p-id').value = p.id;
+      document.getElementById('edit-p-name').value = p.name;
+      document.getElementById('edit-p-description').value = p.description || '';
+      document.getElementById('edit-p-category').value = p.category || 'CALZADOS_IMPORTADOS';
+      document.getElementById('edit-p-price').value = p.price;
+      document.getElementById('edit-p-stock').value = p.stock;
+      document.getElementById('edit-p-shipping').value = p.shippingMinutes || 60;
+      document.getElementById('edit-p-sizes').value = Array.isArray(p.sizes) ? p.sizes.join(', ') : '';
+      document.getElementById('edit-p-colors').value = Array.isArray(p.colors) ? p.colors.join(', ') : '';
+      document.getElementById('edit-p-images').value = Array.isArray(p.images) && p.images.length > 0 ? p.images.join(', ') : (p.imageUrl || '');
+      document.getElementById('edit-p-videourl').value = p.videoUrl || '';
+      document.getElementById('edit-p-promo').value = p.promoType || 'NONE';
+      document.getElementById('edit-p-discount').value = p.discountPercent || 0;
+      document.getElementById('edit-p-available').checked = p.isAvailable !== false;
+      document.getElementById('edit-p-featured').checked = Boolean(p.isFeatured);
+      document.getElementById('edit-p-hotsale').checked = Boolean(p.isHotSale);
+      document.getElementById('edit-p-blackfriday').checked = Boolean(p.isBlackFriday);
+
+      document.getElementById('edit-product-modal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-product-modal').classList.add('hidden');
+    }
+
+    async function submitProductEdit(e) {
+      e.preventDefault();
+      const productId = document.getElementById('edit-p-id').value;
+
+      try {
+        const uploadedFiles = await uploadSelectedFiles('edit-p-file-input');
+        const rawUrls = document.getElementById('edit-p-images').value.split(',').map(u => u.trim()).filter(Boolean);
+        const finalImages = [...uploadedFiles.filter(u => !u.endsWith('.mp4') && !u.endsWith('.webm')), ...rawUrls];
+
+        let videoUrlVal = document.getElementById('edit-p-videourl').value;
+        const uploadedVideo = uploadedFiles.find(u => u.endsWith('.mp4') || u.endsWith('.webm'));
+        if (uploadedVideo) videoUrlVal = uploadedVideo;
+
+        const body = {
+          name: document.getElementById('edit-p-name').value,
+          description: document.getElementById('edit-p-description').value,
+          category: document.getElementById('edit-p-category').value,
+          price: document.getElementById('edit-p-price').value,
+          stock: document.getElementById('edit-p-stock').value,
+          shippingMinutes: document.getElementById('edit-p-shipping').value,
+          sizes: document.getElementById('edit-p-sizes').value,
+          colors: document.getElementById('edit-p-colors').value,
+          images: finalImages,
+          videoUrl: videoUrlVal,
+          promoType: document.getElementById('edit-p-promo').value,
+          discountPercent: document.getElementById('edit-p-discount').value,
+          isAvailable: document.getElementById('edit-p-available').checked,
+          isFeatured: document.getElementById('edit-p-featured').checked,
+          isHotSale: document.getElementById('edit-p-hotsale').checked,
+          isBlackFriday: document.getElementById('edit-p-blackfriday').checked,
+        };
+
+        const res = await fetch(`/api/products/${productId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+          alert('✅ Producto actualizado correctamente.');
+          closeEditModal();
+          loadProducts();
+        } else {
+          alert('Error al guardar los cambios.');
+        }
+      } catch (err) {
+        alert('⚠️ Error al subir los nuevos archivos.');
+      }
+    }
+
+    function openDetailModal(orderId) {
+      const order = globalOrders.find(o => o.id === orderId);
+      if (!order) return;
+
+      let items = [];
+      try { items = JSON.parse(order.itemsSummary || '[]'); } catch(e) {}
+      const formattedTotal = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(order.totalAmount || 0);
+
+      const itemsListHtml = items.map((i) => `
+        <li>• <strong>${escapeHTML(i.name)}</strong> - Talle: ${i.size} | Color: ${escapeHTML(i.color)} - $${i.price}</li>
+      `).join('');
+
+      let receiptPreviewHtml = '';
+      if (order.receiptUrl && order.receiptUrl.startsWith('data:image')) {
+        receiptPreviewHtml = `
+          <div class="mt-3 p-3 bg-gray-100 dark:bg-slate-900 rounded-xl border dark:border-slate-700">
+            <p class="font-bold text-xs text-gray-700 dark:text-slate-300 mb-1">Comprobante Enviado por el Cliente:</p>
+            <img src="${order.receiptUrl}" alt="Comprobante" class="max-h-48 rounded-lg mx-auto border dark:border-slate-700 shadow-sm">
+          </div>
+        `;
+      }
+
+      document.getElementById('modal-title').innerText = `Detalle de Orden #${order.id.slice(0, 8)}`;
+      document.getElementById('modal-content').innerHTML = `
+        <div class="bg-gray-50 dark:bg-slate-900/60 p-3 rounded-xl border dark:border-slate-700 space-y-1">
+          <p><strong>ID Completo:</strong> <span class="font-mono text-xs">${escapeHTML(order.id)}</span></p>
+          <p><strong>Teléfono:</strong> ${escapeHTML(order.phone.replace('@c.us','').replace('@lid',''))}</p>
+          <p><strong>Fecha:</strong> ${new Date(order.createdAt).toLocaleString('es-AR')}</p>
+        </div>
+        <div>
+          <p class="font-bold text-gray-900 dark:text-white mb-1">Productos Comprados (${items.length}):</p>
+          <ul class="text-xs space-y-1 text-gray-700 dark:text-slate-300 font-medium">${itemsListHtml}</ul>
+          <p class="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-2">MONTO TOTAL: ${formattedTotal}</p>
+        </div>
+        <p><strong>Destinatario:</strong> ${escapeHTML(order.recipientName || 'N/A')}</p>
+        <p><strong>Dirección:</strong> ${escapeHTML(order.address)}</p>
+        <p><strong>Entrega:</strong> ${escapeHTML(order.deliveryOption || 'N/A')} (${escapeHTML(order.deliveryDay || '')} ${escapeHTML(order.deliveryTimeSlot || '')})</p>
+        <p><strong>Medio de Pago:</strong> ${escapeHTML(order.payment)}</p>
+        <p><strong>Estado:</strong> <span class="font-bold text-emerald-600 dark:text-emerald-400">${escapeHTML(order.status)}</span></p>
+
+        ${receiptPreviewHtml}
+
+        <div class="pt-3 border-t dark:border-slate-700 mt-3 flex justify-end">
+          <a href="/api/orders/${order.id}/pdf" download target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 shadow transition">
+            📄 Descargar Comprobante PDF
+          </a>
+        </div>
+      `;
+      document.getElementById('detail-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('detail-modal').classList.add('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      loadOrders();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KICKS | Tienda Oficial</title>
+
+  <!-- META TAGS (Open Graph) -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="KICKS - Tienda Oficial">
+  <meta property="og:description" content="Encuentra las mejores opciones con envío a todo el país. ¡Envío GRATIS en Córdoba Capital! Comprá directamente por WhatsApp.">
+  <meta property="og:image" content="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1200">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @keyframes marquee {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .animate-marquee {
+      display: flex;
+      width: max-content;
+      animation: marquee 45s linear infinite;
+    }
+
+    .animate-marquee:hover {
+      animation-play-state: paused;
+    }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Zoom suave para tarjetas del catálogo */
+    .card-zoom-container {
+      overflow: hidden;
+      position: relative;
+    }
+    .card-zoom-image {
+      transition: transform 0.4s ease-in-out;
+      transform-origin: center center;
+    }
+    .card-zoom-container:hover .card-zoom-image {
+      transform: scale(1.4);
+    }
+
+    /* Lupa / Zoom dinámico para el Modal */
+    .zoom-modal-container {
+      overflow: hidden;
+      position: relative;
+      cursor: zoom-in;
+    }
+    .zoom-modal-image {
+      transition: transform 0.1s ease-out;
+      transform-origin: center center;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .zoom-modal-container:hover .zoom-modal-image {
+      transform: scale(2.2);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans min-h-screen flex flex-col justify-between">
+
+  <!-- Navbar -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <div class="bg-gray-900 text-white p-2 rounded-xl">
+          <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+        </div>
+        <span class="text-2xl font-black tracking-tight text-gray-900">KICKS.ar</span>
+      </div>
+
+      <!-- BOTÓN REGISTRO / MI CUENTA -->
+      <div id="user-header-area"></div>
+    </div>
+  </header>
+
+  <!-- Hero Banner con Badges Incluidos -->
+  <section class="bg-gray-900 text-white pt-8 pb-6 px-4 relative overflow-hidden">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-center relative z-10 mb-8">
+      
+      <div class="lg:col-span-6 text-center lg:text-left">
+        <!-- CONTENEDOR DE BADGES DE CONFIANZA -->
+        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-3">
+          <span class="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+            🚚 Envío Gratis en Cba Capital
+          </span>
+          <span class="bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+            🛡️ Confianza
+          </span>
+          <span class="bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+            ⭐ Calidad
+          </span>
+          <span class="bg-purple-500/20 border border-purple-500/30 text-purple-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+            🏷️ Precios Bajos
+          </span>
+        </div>
+
+        <h1 class="text-3xl md:text-5xl font-black mt-2 mb-2 tracking-tight">Colección 2026 Multirrubro</h1>
+        <p class="text-gray-400 text-xs md:text-sm max-w-xl mx-auto lg:mx-0">
+          Elegí tu producto favorito y realizá tu pedido directamente por WhatsApp de forma rápida y segura.
+        </p>
+      </div>
+
+      <!-- CARRUSEL DINÁMICO DE PRODUCTOS DESTACADOS -->
+      <div class="lg:col-span-6 overflow-hidden relative">
+        <div class="flex items-center justify-between mb-2 px-1">
+          <span class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+            <span class="animate-pulse">🔥</span> PRODUCTOS DESTACADOS
+          </span>
+          <span class="text-[11px] text-gray-400 font-medium">Pasa el cursor para pausar</span>
+        </div>
+
+        <div class="w-full overflow-hidden">
+          <div id="marquee-container" class="animate-marquee flex gap-3">
+            <div class="text-xs text-gray-400 p-2">Cargando destacados...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BOTONES DE CATEGORÍAS EN BANNER OSCURO -->
+    <div class="max-w-7xl mx-auto relative z-10 border-t border-gray-800 pt-5">
+      <div class="w-full overflow-x-auto no-scrollbar">
+        <div class="inline-flex items-center gap-2 pb-2 min-w-full">
+          <button onclick="filterCategory('TODOS', event)" class="category-btn active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap bg-emerald-500 text-gray-900 shadow-md flex-shrink-0">
+            <span>✨</span> TODOS
+          </button>
+          <button onclick="filterCategory('PERFUMES', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>🌸</span> PERFUMES
+          </button>
+          <button onclick="filterCategory('MOCHILAS_CARTERAS', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>🎒</span> MOCHILAS Y CARTERAS
+          </button>
+          <button onclick="filterCategory('MODA_MUJER', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>👗👖</span> MODA
+          </button>
+          <button onclick="filterCategory('JOYA_ACCESORIOS', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>💍</span> JOYA & ACCESORIOS
+          </button>
+          <button onclick="filterCategory('BAZAR', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>🏠</span> BAZAR
+          </button>
+          <button onclick="filterCategory('CALZADOS_IMPORTADOS', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>👟</span> CALZADOS IMPORTADOS
+          </button>
+          <button onclick="filterCategory('TECNOLOGIA', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>🎧</span> TECNOLOGÍA
+          </button>
+          <button onclick="filterCategory('VARIOS', event)" class="category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+            <span>🛍️</span> VARIOS
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Catálogo COMPACTO -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+    
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+      <div>
+        <h2 class="text-xl font-black text-gray-900 tracking-tight">Catálogo Disponible</h2>
+        <p class="text-xs text-gray-500">Pasa el cursor sobre la foto para ampliar o haz clic para abrir la vista detallada</p>
+      </div>
+      <span id="product-count" class="text-xs font-bold bg-gray-200 text-gray-700 px-3 py-1 rounded-full self-start md:self-auto">Cargando...</span>
+    </div>
+
+    <!-- Grid de Productos Compacto -->
+    <div id="products-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5">
+      <div class="col-span-full text-center py-12 text-gray-400 font-semibold">Cargando productos...</div>
+    </div>
+
+    <!-- SECCIÓN DE POLÍTICA DE DEVOLUCIÓN O CAMBIO -->
+    <section class="mt-12 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div class="space-y-2 max-w-3xl">
+          <div class="flex items-center gap-2 text-gray-900 font-black text-lg">
+            <i data-lucide="refresh-cw" class="w-5 h-5 text-emerald-600"></i>
+            <h3>Política de Devolución y Cambios</h3>
+          </div>
+          <p class="text-xs text-gray-600 leading-relaxed">
+            Queremos que compres con total tranquilidad. Para solicitar un cambio o devolución, el producto debe encontrarse en el <strong>mismo estado exacto en el que fue entregado</strong>, sin marcas de uso y con su empaque original.
+          </p>
+          <div class="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 font-medium flex items-start gap-2">
+            <span class="text-base leading-none">⚠️</span>
+            <span><strong>Importante:</strong> Bajo ninguna circunstancia se aceptarán productos que presenten <strong>rotura, deformación o signos de mal uso</strong>.</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col justify-center gap-2 flex-shrink-0">
+          <a href="https://wa.me/5493518685045?text=Hola%2C%20tengo%20una%20consulta%20sobre%20un%20cambio%20o%20devolución" 
+             target="_blank" 
+             class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 px-5 rounded-xl transition flex items-center justify-center gap-2 shadow-md">
+            <i data-lucide="message-circle" class="w-4 h-4"></i>
+            <span>Consultar por Cambios en WhatsApp</span>
+          </a>
+          <span class="text-[11px] text-gray-400 text-center">Atención directa por WhatsApp</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SECCIÓN BENEFICIOS -->
+  <section class="max-w-7xl mx-auto px-4 mt-12 mb-6 w-full">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+        <div class="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold flex-shrink-0 shadow-md">
+          <i data-lucide="truck" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h4 class="text-xs font-black uppercase text-gray-900 tracking-wider">ENVÍO GRATIS EN CBA CAPITAL</h4>
+          <p class="text-[11px] text-emerald-700 font-bold mt-0.5">¡Entrega inmediata sin cargo!</p>
+        </div>
+      </div>
+
+      <div class="bg-amber-500/10 border border-amber-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+        <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold flex-shrink-0">
+          <i data-lucide="tag" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h4 class="text-xs font-black uppercase text-gray-900 tracking-wider">OFERTAS LIMITADAS</h4>
+          <p class="text-[11px] text-gray-500 mt-0.5">Aprovechá los mejores descuentos</p>
+        </div>
+      </div>
+
+      <div class="bg-rose-500/10 border border-rose-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+        <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold flex-shrink-0">
+          <i data-lucide="bell" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h4 class="text-xs font-black uppercase text-gray-900 tracking-wider">SUSCRIBITE Y RECIBÍ</h4>
+          <p class="text-[11px] text-gray-500 mt-0.5">Novedades exclusivas en tu correo</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODAL AUTENTICACIÓN -->
+  <div id="auth-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl relative">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="auth-title" class="text-xl font-bold text-gray-900">Iniciar Sesión</h3>
+        <button onclick="closeAuthModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+
+      <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Correo Electrónico</label>
+          <input type="email" id="auth-email" required placeholder="tu@email.com" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-gray-900">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Contraseña</label>
+          <input type="password" id="auth-password" required placeholder="••••••••" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-gray-900">
+        </div>
+
+        <button type="submit" id="auth-submit-btn" class="w-full bg-gray-900 hover:bg-black text-white font-bold py-3 rounded-xl text-sm transition">
+          Ingresar
+        </button>
+      </form>
+
+      <div class="mt-4 text-center border-t pt-3">
+        <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-xs font-bold text-emerald-600 hover:underline">
+          ¿No tienes cuenta? Regístrate aquí
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL MIS COMPRAS -->
+  <div id="my-orders-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
+      <div class="flex justify-between items-center mb-4 border-b pb-3">
+        <h3 class="text-xl font-bold text-gray-900">🛍️ Mis Compras Realizadas</h3>
+        <button onclick="closeOrdersModal()" class="text-gray-400 font-bold text-xl">&times;</button>
+      </div>
+      <div id="my-orders-list" class="space-y-3 overflow-y-auto flex-grow text-sm">
+        <p class="text-center text-gray-400 py-6">Cargando tus pedidos...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DETALLE DE PRODUCTO: COLUMNA IZQUIERDA (FOTOS) + COLUMNA DERECHA (INFO COMPLETA) -->
+  <div id="lightbox-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center hidden z-50 p-3 md:p-6" onclick="closeLightbox(event)">
+    <button onclick="closeLightbox(event)" class="absolute top-3 right-3 text-white text-3xl font-bold bg-white/10 hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center transition z-20">&times;</button>
+
+    <div class="bg-white rounded-2xl max-w-4xl w-full p-4 md:p-6 overflow-hidden relative max-h-[92vh] flex flex-col text-gray-900 shadow-2xl" onclick="event.stopPropagation()">
+      
+      <!-- GRID SPLIT: IZQUIERDA (MEDIA) - DERECHA (DETALLES) -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6 overflow-y-auto max-h-[85vh] pr-1 no-scrollbar">
+        
+        <!-- COLUMNA IZQUIERDA: FOTOS Y MINIATURAS -->
+        <div class="md:col-span-6 flex flex-col gap-3">
+          <div class="relative w-full h-[320px] sm:h-[380px] bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
+            <button id="lightbox-prev-btn" onclick="navigateLightbox(-1)" class="absolute left-2 top-1/2 -translate-y-1/2 text-white bg-black/60 hover:bg-black/90 w-9 h-9 rounded-full flex items-center justify-center transition z-20 focus:outline-none shadow">
+              <i data-lucide="chevron-left" class="w-6 h-6"></i>
+            </button>
+
+            <div id="lightbox-content" class="zoom-modal-container w-full h-full flex items-center justify-center" onmousemove="handleImageZoom(event)" onmouseleave="resetImageZoom(event)"></div>
+
+            <button id="lightbox-next-btn" onclick="navigateLightbox(1)" class="absolute right-2 top-1/2 -translate-y-1/2 text-white bg-black/60 hover:bg-black/90 w-9 h-9 rounded-full flex items-center justify-center transition z-20 focus:outline-none shadow">
+              <i data-lucide="chevron-right" class="w-6 h-6"></i>
+            </button>
+          </div>
+
+          <!-- Miniaturas -->
+          <div id="lightbox-thumbnails" class="flex gap-2 overflow-x-auto p-1 max-w-full no-scrollbar"></div>
+        </div>
+
+        <!-- COLUMNA DERECHA: INFORMACIÓN COMPLETA -->
+        <div class="md:col-span-6 flex flex-col justify-between space-y-4">
+          <div id="lightbox-info" class="space-y-3"></div>
+
+          <!-- Botón de Acción / Comprar por WhatsApp -->
+          <div id="lightbox-action" class="pt-3 border-t"></div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-gray-200 py-6 mt-8">
+    <div class="max-w-7xl mx-auto px-4 text-center">
+      <div class="flex items-center justify-center gap-2 mb-2">
+        <div class="bg-gray-900 text-white p-1 rounded-lg">
+          <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+        </div>
+        <span class="text-base font-bold text-gray-900">KICKS.</span>
+      </div>
+      <p class="text-xs text-gray-500 mb-1">
+        Para recibir asistencia o reclamos comunícate por mail a: 
+        <a href="mailto:..relaxmy89@gmail.com.." class="font-semibold text-emerald-600 underline"> ..relaxmy89@gmail.com.. </a>
+      </p>
+      <p class="text-[11px] text-gray-400">© 2026 KICKS.ar Todos los derechos reservados.</p>
+    </div>
+  </footer>
+
+  <script>
+    const WHATSAPP_PHONE = '5493518685045';
+    const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600';
+    let allProducts = [];
+    let currentCategory = 'TODOS';
+    let currentUser = JSON.parse(localStorage.getItem('kicks_user') || 'null');
+    let isRegisterMode = false;
+
+    let currentLightboxProductId = null;
+    let currentLightboxMediaIndex = 0;
+    let currentLightboxMediaList = [];
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function handleImageZoom(e) {
+      const img = e.currentTarget.querySelector('img');
+      if (!img) return;
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+      img.style.transformOrigin = `${x}% ${y}%`;
+    }
+
+    function resetImageZoom(e) {
+      const img = e.currentTarget.querySelector('img');
+      if (!img) return;
+      img.style.transformOrigin = 'center center';
+    }
+
+    function renderUserHeader() {
+      const container = document.getElementById('user-header-area');
+      if (currentUser) {
+        let adminBtn = '';
+        if (currentUser.role === 'ADMIN') {
+          adminBtn = `<a href="/admin.html" class="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-amber-200 transition">⚙️ Panel Admin</a>`;
+        }
+
+        container.innerHTML = `
+          <div class="flex items-center gap-2">
+            <button onclick="openMyOrdersModal()" class="text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-xl transition flex items-center gap-1">
+              <span>🛍️</span> Mis Compras
+            </button>
+            ${adminBtn}
+            <button onclick="logout()" class="text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl transition">
+              Salir
+            </button>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <button onclick="openAuthModal()" class="text-xs font-bold text-white bg-gray-900 hover:bg-black px-3.5 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5">
+            <i data-lucide="user" class="w-4 h-4"></i>
+            <span>Mi Cuenta / Registro</span>
+          </button>
+        `;
+      }
+      lucide.createIcons();
+    }
+
+    function openAuthModal() {
+      document.getElementById('auth-modal').classList.remove('hidden');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+    }
+
+    function toggleAuthMode() {
+      isRegisterMode = !isRegisterMode;
+      document.getElementById('auth-title').innerText = isRegisterMode ? 'Crear Cuenta' : 'Iniciar Sesión';
+      document.getElementById('auth-submit-btn').innerText = isRegisterMode ? 'Registrarme' : 'Ingresar';
+      document.getElementById('auth-toggle-btn').innerText = isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate aquí';
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+
+      const endpoint = isRegisterMode ? '/api/auth/register' : '/api/auth/login';
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          currentUser = data.user;
+          localStorage.setItem('kicks_user', JSON.stringify(currentUser));
+          closeAuthModal();
+          renderUserHeader();
+          alert(isRegisterMode ? '🎉 Cuenta creada exitosamente.' : '👋 ¡Bienvenido de nuevo!');
+        } else {
+          alert(data.error || 'Ocurrió un error.');
+        }
+      } catch (err) {
+        alert('Error al conectar con el servidor.');
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('kicks_user');
+      currentUser = null;
+      renderUserHeader();
+    }
+
+    async function openMyOrdersModal() {
+      if (!currentUser) return;
+      document.getElementById('my-orders-modal').classList.remove('hidden');
+      const listContainer = document.getElementById('my-orders-list');
+
+      try {
+        const res = await fetch(`/api/users/${currentUser.id}/orders`);
+        const orders = await res.json();
+
+        if (!orders || orders.length === 0) {
+          listContainer.innerHTML = `<p class="text-center text-gray-400 py-6">Aún no has realizado ninguna compra con tu cuenta.</p>`;
+          return;
+        }
+
+        listContainer.innerHTML = orders.map(o => `
+          <div class="bg-gray-50 border rounded-xl p-3 space-y-1">
+            <div class="flex justify-between items-center text-xs font-bold">
+              <span class="text-gray-900">Orden #${o.id.slice(0, 8)}</span>
+              <span class="text-emerald-600">${o.status}</span>
+            </div>
+            <p class="text-xs text-gray-500">Fecha: ${new Date(o.createdAt).toLocaleDateString('es-AR')}</p>
+            <p class="text-xs font-bold text-gray-800">Total: $${o.totalAmount}</p>
+            <div class="pt-2 text-right">
+              <a href="/api/orders/${o.id}/pdf" download target="_blank" class="text-xs font-bold text-blue-600 hover:underline">📄 Descargar Comprobante PDF</a>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        listContainer.innerHTML = `<p class="text-center text-rose-500 py-4">Error al cargar tus pedidos.</p>`;
+      }
+    }
+
+    function closeOrdersModal() {
+      document.getElementById('my-orders-modal').classList.add('hidden');
+    }
+
+    function openLightbox(productId, selectedIndex = 0) {
+      const product = allProducts.find(p => p.id === productId);
+      if (!product) return;
+
+      currentLightboxProductId = productId;
+      
+      const imageList = (product.images && product.images.length > 0) 
+        ? product.images 
+        : [product.imageUrl || FALLBACK_IMAGE];
+
+      currentLightboxMediaList = [];
+      if (product.videoUrl && product.videoUrl.trim() !== '') {
+        currentLightboxMediaList.push({ type: 'video', url: product.videoUrl });
+      }
+      imageList.forEach(url => {
+        currentLightboxMediaList.push({ type: 'image', url });
+      });
+
+      currentLightboxMediaIndex = selectedIndex;
+      if (currentLightboxMediaIndex >= currentLightboxMediaList.length) {
+        currentLightboxMediaIndex = 0;
+      }
+
+      renderLightboxContent(product);
+      document.getElementById('lightbox-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function renderLightboxContent(product) {
+      const currentItem = currentLightboxMediaList[currentLightboxMediaIndex];
+      const contentContainer = document.getElementById('lightbox-content');
+      const infoContainer = document.getElementById('lightbox-info');
+      const actionContainer = document.getElementById('lightbox-action');
+
+      if (currentItem.type === 'video') {
+        contentContainer.innerHTML = `
+          <video src="${escapeHTML(currentItem.url)}" controls autoplay class="w-full h-full object-contain rounded-xl"></video>
+        `;
+      } else {
+        contentContainer.innerHTML = `
+          <img src="${escapeHTML(currentItem.url)}" alt="Imagen Completa" class="zoom-modal-image rounded-xl">
+        `;
+      }
+
+      let displayPrice = product.price;
+      if (product.promoType === 'PERCENTAGE' && product.discountPercent > 0) {
+        displayPrice = product.price - (product.price * (product.discountPercent / 100));
+      }
+      const formattedPrice = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(displayPrice);
+
+      let promoBadges = '';
+      if (product.isHotSale || String(product.isHotSale) === 'true') promoBadges += `<span class="bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase shadow">🔥 Hot Sale</span> `;
+      if (product.isFeatured || String(product.isFeatured) === 'true') promoBadges += `<span class="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase shadow">⭐ Destacado</span> `;
+      if (product.isBlackFriday || String(product.isBlackFriday) === 'true') promoBadges += `<span class="bg-gray-900 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase shadow">🖤 Black Friday</span> `;
+      if (product.promoType === 'TWO_FOR_ONE') promoBadges += `<span class="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase shadow">Llevá 2x1</span> `;
+      if (product.promoType === 'PERCENTAGE' && product.discountPercent > 0) promoBadges += `<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase shadow">-${product.discountPercent}% OFF</span> `;
+
+      const sizesList = (product.sizes || []).map(s => `<span class="border border-gray-200 text-gray-800 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-gray-50 hover:border-gray-400 transition">${s}</span>`).join(' ');
+      const colorsList = (product.colors || []).map(c => `<span class="bg-gray-100 border border-gray-200 text-gray-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg hover:border-gray-400 transition">${escapeHTML(c)}</span>`).join(' ');
+
+      infoContainer.innerHTML = `
+        <div class="space-y-1">
+          ${promoBadges ? `<div class="mb-2 flex flex-wrap gap-1">${promoBadges}</div>` : ''}
+          <h2 class="text-xl md:text-2xl font-black text-gray-900 leading-tight">${escapeHTML(product.name)}</h2>
+          <div class="text-2xl font-black text-emerald-600 tracking-tight">${formattedPrice}</div>
+        </div>
+
+        ${product.description ? `
+          <div class="bg-gray-50 border border-gray-100 rounded-xl p-3">
+            <p class="text-xs text-gray-600 leading-relaxed max-h-36 overflow-y-auto pr-1 no-scrollbar">${escapeHTML(product.description)}</p>
+          </div>
+        ` : ''}
+
+        <div class="flex flex-col gap-1.5 bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-xs text-emerald-800">
+          <div class="flex items-center gap-2 font-bold">
+            <i data-lucide="zap" class="w-4 h-4 text-emerald-600"></i>
+            <span>Córdoba Capital: <strong class="uppercase text-emerald-700">Envío GRATIS</strong> (${product.shippingMinutes || 60} min)</span>
+          </div>
+          <div class="flex items-center gap-2 text-gray-600 text-[11px]">
+            <i data-lucide="truck" class="w-4 h-4"></i>
+            <span>Resto del País: Envíos inmediatos en 48 hs</span>
+          </div>
+        </div>
+
+        ${sizesList ? `
+          <div>
+            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Talles / Variantes Disponibles</p>
+            <div class="flex flex-wrap gap-1.5">${sizesList}</div>
+          </div>
+        ` : ''}
+
+        ${colorsList ? `
+          <div>
+            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Colores Disponibles</p>
+            <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">${colorsList}</div>
+          </div>
+        ` : ''}
+      `;
+
+      const currentWebUrl = window.location.origin;
+      const userParam = currentUser ? ` USER:${currentUser.id}` : '';
+      const message = `Hola, quiero comprar el producto ID: ${product.id}${userParam}\n\n📌 Ver Producto: ${currentWebUrl}`;
+      const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
+
+      actionContainer.innerHTML = `
+        <a href="${whatsappUrl}" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg text-xs md:text-sm transition transform hover:-translate-y-0.5">
+          <i data-lucide="message-circle" class="w-5 h-5"></i>
+          <span>Comprar directamente por WhatsApp</span>
+        </a>
+      `;
+
+      const thumbnailsContainer = document.getElementById('lightbox-thumbnails');
+      thumbnailsContainer.innerHTML = currentLightboxMediaList.map((item, idx) => {
+        const isSelected = idx === currentLightboxMediaIndex;
+        const borderClass = isSelected ? 'border-emerald-500 scale-105' : 'border-gray-200 opacity-70 hover:opacity-100';
+
+        if (item.type === 'video') {
+          return `
+            <div onclick="openLightbox('${product.id}', ${idx})" class="w-12 h-12 bg-purple-900 text-white rounded-lg border-2 ${borderClass} cursor-pointer transition flex items-center justify-center font-bold text-xs flex-shrink-0">
+              🎬
+            </div>
+          `;
+        }
+        return `
+          <img src="${escapeHTML(item.url)}" 
+               onerror="this.onerror=null; this.src='${FALLBACK_IMAGE}';"
+               onclick="openLightbox('${product.id}', ${idx})"
+               class="w-12 h-12 object-cover rounded-lg border-2 ${borderClass} cursor-pointer transition flex-shrink-0">
+        `;
+      }).join('');
+
+      const prevBtn = document.getElementById('lightbox-prev-btn');
+      const nextBtn = document.getElementById('lightbox-next-btn');
+      if (currentLightboxMediaList.length <= 1) {
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+      } else {
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+      }
+    }
+
+    function navigateLightbox(direction) {
+      if (currentLightboxMediaList.length <= 1) return;
+      currentLightboxMediaIndex += direction;
+
+      if (currentLightboxMediaIndex < 0) {
+        currentLightboxMediaIndex = currentLightboxMediaList.length - 1;
+      } else if (currentLightboxMediaIndex >= currentLightboxMediaList.length) {
+        currentLightboxMediaIndex = 0;
+      }
+
+      const product = allProducts.find(p => p.id === currentLightboxProductId);
+      renderLightboxContent(product);
+    }
+
+    function closeLightbox(e) {
+      document.getElementById('lightbox-modal').classList.add('hidden');
+    }
+
+    async function fetchProducts() {
+      try {
+        const response = await fetch('/api/products');
+        allProducts = await response.json();
+        renderFeaturedMarquee();
+        renderFilteredProducts();
+      } catch (error) {
+        console.error('Error al cargar productos:', error);
+      }
+    }
+
+    function renderFeaturedMarquee() {
+      const marqueeContainer = document.getElementById('marquee-container');
+      const featured = allProducts.filter(p => (p.isFeatured || p.isHotSale) && p.isAvailable !== false);
+
+      if (featured.length === 0) {
+        marqueeContainer.innerHTML = `<div class="text-xs text-gray-400 p-2">Próximamente más productos destacados...</div>`;
+        return;
+      }
+
+      const displayFeatured = [...featured, ...featured, ...featured];
+
+      marqueeContainer.innerHTML = displayFeatured.map(p => {
+        const img = (p.images && p.images.length > 0) ? p.images[0] : (p.imageUrl || FALLBACK_IMAGE);
+        const formattedPrice = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(p.price);
+
+        return `
+          <div onclick="openLightbox('${p.id}', 0)" class="min-w-[120px] w-[120px] bg-gray-800/80 backdrop-blur border border-gray-700/60 rounded-2xl p-2 flex-shrink-0 hover:border-emerald-500/80 hover:-translate-y-1 transition duration-300 shadow-lg cursor-pointer">
+            <img src="${escapeHTML(img)}" onerror="this.onerror=null; this.src='${FALLBACK_IMAGE}';" alt="${escapeHTML(p.name)}" class="w-full h-16 object-cover rounded-xl mb-1">
+            <p class="text-[11px] font-bold text-white truncate">${escapeHTML(p.name)}</p>
+            <p class="text-[10px] font-extrabold text-emerald-400">${formattedPrice}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterCategory(categoryKey, e) {
+      currentCategory = categoryKey;
+
+      const buttons = document.querySelectorAll('.category-btn');
+      buttons.forEach(btn => {
+        btn.className = 'category-btn border border-gray-700 bg-gray-800/80 text-gray-200 hover:bg-gray-800 hover:border-gray-500 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap flex-shrink-0';
+      });
+
+      if (e && e.currentTarget) {
+        e.currentTarget.className = 'category-btn active px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap bg-emerald-500 text-gray-900 shadow-md flex-shrink-0';
+      }
+
+      renderFilteredProducts();
+    }
+
+    function renderFilteredProducts() {
+      const grid = document.getElementById('products-grid');
+
+      let filtered = allProducts.filter(p => p.isAvailable !== false);
+
+      if (currentCategory !== 'TODOS') {
+        filtered = filtered.filter(p => {
+          const cat = (p.category || p.description || '').toUpperCase();
+          const target = currentCategory.toUpperCase();
+          
+          if (target === 'MOCHILAS_CARTERAS') {
+            return cat.includes('MOCHILA') || cat.includes('CARTERA') || cat.includes('BOLSOS');
+          }
+          if (target === 'PERFUMES') {
+            return cat.includes('PERFUME') || cat.includes('FRAGANCIA');
+          }
+          if (target === 'VARIOS') {
+            return cat.includes('VARIOS') || cat.includes('VARIOS_OTRO') || cat.includes('OTROS');
+          }
+          return cat.includes(target) || cat.includes(target.replace('_', ' '));
+        });
+      }
+
+      document.getElementById('product-count').innerText = `${filtered.length} productos`;
+
+      if (!filtered || filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full text-center py-12 text-gray-400 font-semibold bg-white rounded-2xl border border-dashed p-8">
+            <p class="text-base">📦 No se encontraron productos en esta categoría.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(product => {
+        let displayPrice = product.price;
+        if (product.promoType === 'PERCENTAGE' && product.discountPercent > 0) {
+          displayPrice = product.price - (product.price * (product.discountPercent / 100));
+        }
+
+        const formattedPrice = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(displayPrice);
+
+        let cardBadge = '';
+        if (product.isHotSale || String(product.isHotSale) === 'true') cardBadge = `<span class="bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase shadow">🔥 Hot Sale</span>`;
+        else if (product.isFeatured || String(product.isFeatured) === 'true') cardBadge = `<span class="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase shadow">⭐ Destacado</span>`;
+        else if (product.isBlackFriday || String(product.isBlackFriday) === 'true') cardBadge = `<span class="bg-gray-900 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase shadow">🖤 Black Friday</span>`;
+        else if (product.promoType === 'PERCENTAGE' && product.discountPercent > 0) cardBadge = `<span class="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase shadow">-${product.discountPercent}%</span>`;
+
+        const imageList = (product.images && product.images.length > 0) 
+          ? product.images 
+          : [product.imageUrl || FALLBACK_IMAGE];
+
+        const mainImage = imageList[0];
+
+        const currentWebUrl = window.location.origin;
+        const userParam = currentUser ? ` USER:${currentUser.id}` : '';
+        const message = `Hola, quiero comprar el producto ID: ${product.id}${userParam}\n\n📌 Ver Producto: ${currentWebUrl}`;
+        const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
+
+        return `
+          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between group cursor-pointer" onclick="openLightbox('${product.id}', 0)">
+            <div>
+              <div class="card-zoom-container relative h-36 bg-gray-100 overflow-hidden">
+                <img src="${escapeHTML(mainImage)}" 
+                     onerror="this.onerror=null; this.src='${FALLBACK_IMAGE}';"
+                     alt="${escapeHTML(product.name)}" 
+                     class="card-zoom-image w-full h-full object-cover">
+                
+                ${cardBadge ? `<div class="absolute top-1.5 left-1.5 z-10">${cardBadge}</div>` : ''}
+
+                <span class="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-md text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md z-10">
+                  Stock: ${product.stock}
+                </span>
+              </div>
+
+              <div class="p-2.5 pb-1">
+                <h3 class="text-xs font-bold text-gray-800 leading-snug line-clamp-2 h-8 mb-1">${escapeHTML(product.name)}</h3>
+                <div class="text-sm font-black text-gray-900">${formattedPrice}</div>
+              </div>
+            </div>
+
+            <div class="p-2 pt-1" onclick="event.stopPropagation()">
+              <a href="${whatsappUrl}" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow text-[11px] transition">
+                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                <span>Comprar</span>
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderUserHeader();
+      fetchProducts();
+    });
+  </script>
+</body>
+</html>
