@@ -3,7 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const qrcodeTerminal = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const { PrismaClient } = require('@prisma/client');
 const PDFDocument = require('pdfkit');
 const bcrypt = require('bcryptjs');
@@ -47,6 +48,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const sessionTimeouts = new Map();
 const INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
 const DOWN_PAYMENT_PERCENTAGE = 0.20;
+let currentQrImage = null;
 
 // --- FUNCIÓN ROBUSTA DE DESCARGA MULTIMEDIA ---
 async function safeDownloadMedia(msg, retries = 2) {
@@ -66,6 +68,31 @@ async function safeDownloadMedia(msg, retries = 2) {
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// --- RUTA WEB PARA VISUALIZAR EL CÓDIGO QR EN ALTA RESOLUCIÓN ---
+app.get('/qr', (req, res) => {
+  if (!currentQrImage) {
+    return res.send(`
+      <html>
+        <head><title>Estado de WhatsApp</title></head>
+        <body style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background-color:#f3f4f6;">
+          <h2>🟢 El bot ya se encuentra conectado o aún no se ha generado el código QR.</h2>
+          <p>Si la sesión vence o se desconecta, refresca esta página.</p>
+        </body>
+      </html>
+    `);
+  }
+  res.send(`
+    <html>
+      <head><title>Escanear WhatsApp QR</title></head>
+      <body style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background-color:#f3f4f6;">
+        <h2>Escanear con WhatsApp</h2>
+        <img src="${currentQrImage}" style="width:320px; height:320px; border:10px solid white; border-radius:12px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);" />
+        <p style="margin-top:15px; color:#4b5563;">Abre WhatsApp > Dispositivos vinculados > Vincular dispositivo</p>
+      </body>
+    </html>
+  `);
 });
 
 // --- SUBIDA DE MULTIMEDIA ---
@@ -557,13 +584,18 @@ const client = new Client({
   }
 });
 
-client.on('qr', (qr) => {
-  console.log('Escanea este código QR con la app de WhatsApp:');
-  qrcode.generate(qr, { small: true });
+client.on('qr', async (qr) => {
+  console.log('Nuevo QR generado. Míralo ingresando a /qr desde el navegador.');
+  try {
+    currentQrImage = await QRCode.toDataURL(qr);
+  } catch (err) {
+    console.error('Error generando imagen QR:', err);
+  }
 });
 
 client.on('ready', () => {
   console.log('🟢 Bot de WhatsApp conectado y listo.');
+  currentQrImage = null;
 });
 
 function resetInactivityTimer(phone) {
