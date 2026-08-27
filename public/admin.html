@@ -142,9 +142,20 @@
     <!-- SECCIÓN 3: PRODUCTOS -->
     <div id="section-products" class="hidden space-y-6">
       
-      <!-- Formulario Nuevo Producto -->
+      <!-- Carga Masiva Excel -->
+      <div class="bg-emerald-50 dark:bg-emerald-950/40 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h3 class="text-lg font-bold text-emerald-900 dark:text-emerald-300">📊 Carga Masiva de Productos desde Excel</h3>
+          <p class="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Sube un archivo <code class="font-mono bg-emerald-100 dark:bg-emerald-900/60 px-1 rounded">.xlsx</code> con las columnas: <strong>name, price, category, sizes, colors, stock, imageUrl, description</strong></p>
+        </div>
+        <button onclick="openExcelModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow transition whitespace-nowrap">
+          📁 Importar Archivo Excel
+        </button>
+      </div>
+
+      <!-- Formulario Nuevo Producto Manual -->
       <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700/60">
-        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">➕ Cargar Nuevo Producto</h2>
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">➕ Cargar Nuevo Producto Manual</h2>
         <form id="product-form" onsubmit="saveProduct(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Nombre del Producto</label>
@@ -265,6 +276,28 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- MODAL EXCEL -->
+  <div id="excel-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-transparent dark:border-slate-700">
+      <div class="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-3">
+        <h3 class="text-xl font-bold text-gray-900 dark:text-white">📊 Carga Masiva desde Excel</h3>
+        <button onclick="closeExcelModal()" class="text-gray-400 dark:text-slate-400 font-bold text-xl hover:text-gray-600 dark:hover:text-white">&times;</button>
+      </div>
+
+      <form id="excel-form" onsubmit="uploadExcel(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 dark:text-slate-300 mb-2">Selecciona el archivo (.xlsx / .xls):</label>
+          <input type="file" id="excel-file-input" accept=".xlsx, .xls" required class="w-full border dark:border-slate-600 rounded-lg p-2 text-xs bg-white dark:bg-slate-900 text-gray-700 dark:text-slate-300 cursor-pointer">
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t dark:border-slate-700">
+          <button type="button" onclick="closeExcelModal()" class="bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-800 dark:text-slate-200 font-bold py-2 px-4 rounded-xl text-xs">Cancelar</button>
+          <button type="submit" id="btn-upload-excel" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-xl text-xs shadow transition">Importar Productos</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -776,6 +809,52 @@
         }
       } catch (err) {
         alert('Ocurrió un error al intentar eliminar el producto.');
+      }
+    }
+
+    // CARGA DE ARCHIVOS EXCEL
+    function openExcelModal() {
+      document.getElementById('excel-modal').classList.remove('hidden');
+    }
+
+    function closeExcelModal() {
+      document.getElementById('excel-modal').classList.add('hidden');
+      document.getElementById('excel-file-input').value = '';
+    }
+
+    async function uploadExcel(e) {
+      e.preventDefault();
+      const fileInput = document.getElementById('excel-file-input');
+      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        return alert('Por favor selecciona un archivo Excel.');
+      }
+
+      const formData = new FormData();
+      formData.append('excelFile', fileInput.files[0]);
+
+      const btn = document.getElementById('btn-upload-excel');
+      btn.disabled = true;
+      btn.innerText = 'Importando...';
+
+      try {
+        const res = await fetch('/api/products/import-excel', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ ${data.message}`);
+          closeExcelModal();
+          loadProducts();
+        } else {
+          alert(`⚠️ ${data.error || 'Ocurrió un error al procesar el archivo Excel.'}`);
+        }
+      } catch (err) {
+        alert('⚠️ Error al conectar con el servidor.');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Importar Productos';
       }
     }
 

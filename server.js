@@ -1,21 +1,31 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcodeTerminal = require('qrcode-terminal');
-const QRCode = require('qrcode');
 const { PrismaClient } = require('@prisma/client');
 const PDFDocument = require('pdfkit');
 const bcrypt = require('bcryptjs');
+const XLSX = require('xlsx');
 
 const app = express();
-const prisma = new PrismaClient();
+
+// Instancia de Prisma utilizando variables de entorno protegidas
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: ['error', 'warn'],
+});
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// --- LIMPIEZA AUTOMÁTICA DE SESIÓN SI EXISTE UN ERROR DE CONEXIÓN ---
+// --- LIMPIEZA AUTOMÁTICA DE SESIÓN SI EXISTE UN RESET ---
 const authPath = path.join(__dirname, '.wwebjs_auth');
 const cachePath = path.join(__dirname, '.wwebjs_cache');
 
@@ -43,14 +53,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Tipo de archivo no soportado. Solo imágenes y videos.'));
-    }
-  }
+  limits: { fileSize: 50 * 1024 * 1024 }
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -58,7 +61,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const sessionTimeouts = new Map();
 const INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
 const DOWN_PAYMENT_PERCENTAGE = 0.20;
-let currentQrImage = null;
 
 // --- FUNCIÓN ROBUSTA DE DESCARGA MULTIMEDIA ---
 async function safeDownloadMedia(msg, retries = 2) {
@@ -78,31 +80,6 @@ async function safeDownloadMedia(msg, retries = 2) {
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// --- RUTA WEB PARA VISUALIZAR EL CÓDIGO QR EN ALTA RESOLUCIÓN ---
-app.get('/qr', (req, res) => {
-  if (!currentQrImage) {
-    return res.send(`
-      <html>
-        <head><title>Estado de WhatsApp</title></head>
-        <body style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background-color:#f3f4f6;">
-          <h2>🟢 El bot ya se encuentra conectado o aún está cargando el nuevo código QR.</h2>
-          <p>Refresca la página en unos segundos si estás vinculando por primera vez.</p>
-        </body>
-      </html>
-    `);
-  }
-  res.send(`
-    <html>
-      <head><title>Escanear WhatsApp QR</title></head>
-      <body style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; background-color:#f3f4f6;">
-        <h2>Escanear con WhatsApp</h2>
-        <img src="${currentQrImage}" style="width:320px; height:320px; border:10px solid white; border-radius:12px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);" />
-        <p style="margin-top:15px; color:#4b5563;">Abre WhatsApp > Dispositivos vinculados > Vincular dispositivo</p>
-      </body>
-    </html>
-  `);
 });
 
 // --- SUBIDA DE MULTIMEDIA ---
@@ -126,7 +103,14 @@ app.post('/api/auth/register', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
 
     const cleanEmail = email.toLowerCase().trim();
-    const existingUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    
+    const existingUser = await prisma.user.findUnique({ 
+      where: { email: cleanEmail } 
+    }).catch(err => {
+      console.error('❌ Error de conexión con Supabase en Prisma:', err.message);
+      throw new Error('Fallo al conectar con la base de datos.');
+    });
+
     if (existingUser) return res.status(400).json({ error: 'El email ya se encuentra registrado' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -140,8 +124,8 @@ app.post('/api/auth/register', async (req, res) => {
 
     res.json({ success: true, user: { id: user.id, email: user.email, role: user.role } });
   } catch (error) {
-    console.error('Error en registro:', error);
-    res.status(500).json({ error: 'Error en el servidor al registrarse' });
+    console.error('Error detallado en /api/auth/register:', error);
+    res.status(500).json({ error: error.message || 'Error en el servidor al registrarse' });
   }
 });
 
@@ -183,10 +167,10 @@ app.get('/api/users/:id/orders', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   try {
     const products = await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
-    res.json(products);
+    res.json(Array.isArray(products) ? products : []);
   } catch (error) {
     console.error('Error al obtener productos:', error);
-    res.status(500).json({ error: 'Error al obtener productos.' });
+    res.status(200).json([]);
   }
 });
 
@@ -256,7 +240,55 @@ app.get('/api/orders/metrics', async (req, res) => {
   }
 });
 
-// --- GESTIÓN DE DEVOLUCIONES Y CAMBIOS (ADMIN ENDPOINTS) ---
+// --- CARGA MASIVA DE PRODUCTOS DESDE EXCEL ---
+app.post('/api/products/import-excel', upload.single('excelFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se recibió ningún archivo Excel.' });
+    }
+
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    let createdCount = 0;
+
+    for (const row of rows) {
+      if (!row.name || !row.price) continue;
+
+      const sizes = row.sizes ? String(row.sizes).split(',').map(s => s.trim()).filter(Boolean) : [];
+      const colors = row.colors ? String(row.colors).split(',').map(c => c.trim()).filter(Boolean) : [];
+      const images = row.imageUrl ? [String(row.imageUrl).trim()] : [];
+
+      await prisma.product.create({
+        data: {
+          name: String(row.name).trim(),
+          price: parseFloat(row.price) || 0,
+          category: row.category ? String(row.category).trim() : 'CALZADOS_IMPORTADOS',
+          sizes: sizes,
+          colors: colors,
+          stock: parseInt(row.stock, 10) || 0,
+          imageUrl: images[0] || null,
+          images: images,
+          description: row.description ? String(row.description).trim() : null,
+          isAvailable: row.isAvailable !== undefined ? Boolean(row.isAvailable) : true
+        }
+      });
+      createdCount++;
+    }
+
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    res.json({ success: true, message: `Se importaron ${createdCount} productos con éxito.` });
+  } catch (error) {
+    console.error('Error procesando Excel:', error);
+    res.status(500).json({ error: 'Error al procesar la plantilla de Excel.' });
+  }
+});
+
+// --- GESTIÓN DE DEVOLUCIONES Y CAMBIOS ---
 app.get('/api/returns', async (req, res) => {
   try {
     const returns = await prisma.returnRequest.findMany({ 
@@ -508,11 +540,11 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-// --- PDF GENERATOR ---
+// --- GENERADOR DE PDF PROFESIONAL Y ESTILIZADO ---
 function generateOrderPDFBuffer(order) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ margin: 40, size: 'A4' });
       let buffers = [];
 
       doc.on('data', buffers.push.bind(buffers));
@@ -523,25 +555,75 @@ function generateOrderPDFBuffer(order) {
       const isEfectivoConSena = order.payment && order.payment.includes('Efectivo');
       const formattedTotal = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(totalAmount);
 
-      doc.fillColor('#111827').fontSize(22).text('KICKS - RESUMEN DE COMPRA', { align: 'center' });
-      doc.moveDown(0.5);
-      doc.fillColor('#6B7280').fontSize(12).text(`Nro. de Orden: #${order.id.slice(0, 8)}`, { align: 'center' });
-      doc.moveDown(1.5);
+      // --- ENCABEZADO Y BRANDING ---
+      doc.rect(0, 0, 595.28, 12).fill('#0F172A');
+      doc.fillColor('#0F172A').fontSize(24).font('Helvetica-Bold').text('KICKS', 40, 35);
+      doc.fillColor('#64748B').fontSize(10).font('Helvetica').text('COMPROBANTE DE PEDIDO', 40, 62);
 
-      doc.fillColor('#D97706').fontSize(13).text('ESTADO DEL PAGO: EN PROCESO DE APROBACIÓN', { align: 'center', bold: true });
-      doc.moveDown(1.5);
+      doc.fillColor('#0F172A').fontSize(12).font('Helvetica-Bold').text(`ORDEN #${order.id.slice(0, 8).toUpperCase()}`, 350, 38, { align: 'right' });
+      doc.fillColor('#64748B').fontSize(9).font('Helvetica').text(`Fecha: ${new Date(order.createdAt).toLocaleString('es-AR')}`, 350, 56, { align: 'right' });
 
-      doc.fillColor('#111827').fontSize(14).text('Detalles del Pedido:', { underline: true });
-      doc.moveDown(0.5);
-      
+      doc.moveTo(40, 80).lineTo(555, 80).strokeColor('#E2E8F0').lineWidth(1).stroke();
+
+      // --- BADGE DE ESTADO DEL PAGO ---
+      let badgeBg = '#FEF3C7';
+      let badgeColor = '#D97706';
+      let statusText = 'PAGO EN PROCESO DE REVISIÓN';
+
+      if (order.status === 'APPROVED') {
+        badgeBg = '#DCFCE7';
+        badgeColor = '#15803D';
+        statusText = 'PAGO CONFIRMADO Y APROBADO';
+      } else if (order.status === 'REJECTED') {
+        badgeBg = '#FEE2E2';
+        badgeColor = '#B91C1C';
+        statusText = 'PAGO RECHAZADO';
+      }
+
+      doc.roundedRect(40, 95, 515, 28, 6).fill(badgeBg);
+      doc.fillColor(badgeColor).fontSize(10).font('Helvetica-Bold').text(statusText, 40, 104, { align: 'center' });
+
+      // --- TABLA DE PRODUCTOS ---
+      let startY = 140;
+      doc.fillColor('#0F172A').fontSize(12).font('Helvetica-Bold').text('Detalle de Ítems', 40, startY);
+      startY += 18;
+
+      doc.rect(40, startY, 515, 22).fill('#F1F5F9');
+      doc.fillColor('#475569').fontSize(9).font('Helvetica-Bold');
+      doc.text('ÍTEM / DESCRIPCIÓN', 50, startY + 6);
+      doc.text('TALLE', 300, startY + 6);
+      doc.text('COLOR', 370, startY + 6);
+      doc.text('SUBTOTAL', 470, startY + 6, { align: 'right' });
+
+      startY += 22;
+
       const items = JSON.parse(order.itemsSummary || '[]');
+      doc.font('Helvetica').fontSize(9);
+
       items.forEach((item, index) => {
         const itemPrice = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(item.price);
-        doc.fontSize(12).text(`${index + 1}. ${item.name} - Talle: ${item.size} | Color: ${item.color} | Precio: ${itemPrice}`);
+        
+        if (index % 2 === 0) {
+          doc.rect(40, startY, 515, 22).fill('#FAFAFA');
+        }
+
+        doc.fillColor('#1E293B');
+        doc.text(`${index + 1}. ${item.name}`, 50, startY + 6, { width: 240, ellipsis: true });
+        doc.text(`${item.size || 'N/A'}`, 300, startY + 6);
+        doc.text(`${item.color || 'N/A'}`, 370, startY + 6);
+        doc.text(`${itemPrice}`, 440, startY + 6, { width: 105, align: 'right' });
+
+        startY += 22;
       });
 
-      doc.moveDown(1);
-      doc.fontSize(13).fillColor('#111827').text(`VALOR TOTAL DEL PEDIDO: ${formattedTotal}`, { bold: true });
+      doc.moveTo(40, startY + 2).lineTo(555, startY + 2).strokeColor('#CBD5E1').lineWidth(0.8).stroke();
+      startY += 12;
+
+      // --- RESUMEN DE TOTALES ---
+      doc.rect(330, startY, 225, isEfectivoConSena ? 75 : 42).fill('#F8FAFC').strokeColor('#E2E8F0').lineWidth(1).stroke();
+
+      doc.fillColor('#475569').fontSize(10).font('Helvetica-Bold').text('Total del Pedido:', 340, startY + 12);
+      doc.fillColor('#0F172A').fontSize(12).font('Helvetica-Bold').text(`${formattedTotal}`, 430, startY + 11, { align: 'right' });
 
       if (isEfectivoConSena) {
         const depositAmount = totalAmount * DOWN_PAYMENT_PERCENTAGE;
@@ -550,23 +632,39 @@ function generateOrderPDFBuffer(order) {
         const formattedDeposit = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(depositAmount);
         const formattedRemaining = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(remainingAmount);
 
-        doc.moveDown(0.3);
-        doc.fontSize(12).fillColor('#2563eb').text(`• Seña Abonada (20%): ${formattedDeposit}`);
-        doc.moveDown(0.3);
-        doc.fontSize(13).fillColor('#dc2626').text(`• RESTO A PAGAR AL RECIBIR (Efectivo): ${formattedRemaining}`, { bold: true });
+        doc.fillColor('#2563EB').fontSize(9).font('Helvetica').text(`• Seña Abonada (20%): ${formattedDeposit}`, 340, startY + 32);
+        doc.fillColor('#DC2626').fontSize(9).font('Helvetica-Bold').text(`• Resto en Efectivo: ${formattedRemaining}`, 340, startY + 50);
       }
 
-      doc.moveDown(1.5);
+      startY += isEfectivoConSena ? 90 : 55;
 
-      doc.fillColor('#111827').fontSize(12).text(`• Destinatario: ${order.recipientName || 'N/A'}`);
-      doc.text(`• Dirección de Envío: ${order.address}`);
-      doc.text(`• Modalidad de Entrega: ${order.deliveryOption || 'N/A'}`);
-      doc.text(`• Día / Horario: ${order.deliveryDay || ''} ${order.deliveryTimeSlot || ''}`);
-      doc.text(`• Medio de Pago: ${order.payment}`);
-      doc.text(`• Fecha: ${new Date(order.createdAt).toLocaleString('es-AR')}`);
+      // --- TARJETAS DE INFORMACIÓN (ENVÍO Y PAGO) ---
+      const boxWidth = 250;
+      const boxHeight = 110;
 
-      doc.moveDown(2);
-      doc.fillColor('#9CA3AF').fontSize(10).text('Gracias por tu compra. Te notificaremos ni bien el pago sea validado.', { align: 'center' });
+      // Tarjeta Envío
+      doc.roundedRect(40, startY, boxWidth, boxHeight, 6).fill('#F8FAFC').strokeColor('#E2E8F0').lineWidth(1).stroke();
+      doc.fillColor('#0F172A').fontSize(10).font('Helvetica-Bold').text('📦 Datos de Entrega', 52, startY + 12);
+      
+      doc.fillColor('#475569').fontSize(8.5).font('Helvetica');
+      doc.text(`Destinatario: `, 52, startY + 30, { continued: true }).fillColor('#0F172A').font('Helvetica-Bold').text(`${order.recipientName || 'N/A'}`);
+      doc.fillColor('#475569').font('Helvetica').text(`Dirección: `, 52, startY + 45, { continued: true }).fillColor('#0F172A').font('Helvetica-Bold').text(`${order.address}`);
+      doc.fillColor('#475569').font('Helvetica').text(`Modalidad: `, 52, startY + 60, { continued: true }).fillColor('#0F172A').font('Helvetica-Bold').text(`${order.deliveryOption || 'N/A'}`);
+      doc.fillColor('#475569').font('Helvetica').text(`Día/Horario: `, 52, startY + 75, { continued: true }).fillColor('#0F172A').font('Helvetica-Bold').text(`${order.deliveryDay || ''} ${order.deliveryTimeSlot || ''}`);
+
+      // Tarjeta Pago
+      doc.roundedRect(305, startY, boxWidth, boxHeight, 6).fill('#F8FAFC').strokeColor('#E2E8F0').lineWidth(1).stroke();
+      doc.fillColor('#0F172A').fontSize(10).font('Helvetica-Bold').text('💳 Medio de Pago', 317, startY + 12);
+
+      doc.fillColor('#475569').fontSize(8.5).font('Helvetica');
+      doc.text(`Método Seleccionado:`, 317, startY + 30);
+      doc.fillColor('#2563EB').fontSize(10).font('Helvetica-Bold').text(`${order.payment}`, 317, startY + 44);
+
+      // --- PIE DE PÁGINA ---
+      doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text(
+        'Gracias por elegir KICKS. Ante cualquier duda o reclamo, comunícate a soportekicks@gmail.com',
+        40, 770, { align: 'center', width: 515 }
+      );
 
       doc.end();
     } catch (err) {
@@ -575,7 +673,7 @@ function generateOrderPDFBuffer(order) {
   });
 }
 
-// --- WHATSAPP CLIENT CONFIGURADO PARA RENDER ---
+// --- CLIENTE DE WHATSAPP WEB ---
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -595,18 +693,16 @@ const client = new Client({
   }
 });
 
-client.on('qr', async (qr) => {
-  console.log('Nuevo QR generado. Míralo ingresando a /qr desde el navegador.');
-  try {
-    currentQrImage = await QRCode.toDataURL(qr);
-  } catch (err) {
-    console.error('Error generando imagen QR:', err);
-  }
+// 📌 CÓDIGO QR MOSTRADO EXCLUSIVAMENTE EN TERMINAL
+client.on('qr', (qr) => {
+  console.log('\n================================================--');
+  console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP');
+  console.log('================================================--\n');
+  qrcodeTerminal.generate(qr, { small: true });
 });
 
 client.on('ready', () => {
   console.log('🟢 Bot de WhatsApp conectado y listo.');
-  currentQrImage = null;
 });
 
 function resetInactivityTimer(phone) {
@@ -656,14 +752,30 @@ app.post('/api/orders/approve', async (req, res) => {
     });
 
     const mensajeAprobado = 
-      `🎉 *¡PAGO APROBADO!*\n\n` +
+      `🎉 *¡PAGO APROBADO Y CONFIRMADO!*\n\n` +
       `Hola! Te confirmamos que tu pago para la Orden *#${order.id.slice(0, 8)}* ha sido validado con éxito.\n\n` +
-      `📦 *Estado:* Su pedido ya está en preparación.\n` +
-      `Te avisaremos en cuanto salga a despacho. ¡Muchas gracias por tu compra!\n\n` +
-      `📩 Para recibir asistencia o realizar reclamos, comunícate por mail a: *soportekicks@gmail.com*`;
+      `📦 *Estado:* Su pedido ya se encuentra en preparación para el despacho.\n` +
+      `Te adjuntamos a continuación tu *comprobante de pago actualizado* en formato PDF. ¡Muchas gracias por tu compra!\n\n` +
+      `📩 Soporte: *soportekicks@gmail.com*`;
 
     await client.sendMessage(order.phone, mensajeAprobado);
-    res.json({ success: true, message: 'Pago aprobado y cliente notificado.', order });
+
+    try {
+      const pdfBuffer = await generateOrderPDFBuffer(order);
+      const pdfMedia = new MessageMedia(
+        'application/pdf', 
+        pdfBuffer.toString('base64'), 
+        `Comprobante_Aprobado_Orden_${order.id.slice(0, 8)}.pdf`
+      );
+
+      await client.sendMessage(order.phone, pdfMedia, {
+        caption: `📄 *Comprobante de Pago Aprobado - Orden #${order.id.slice(0, 8)}*`
+      });
+    } catch (pdfErr) {
+      console.error('Error generando/enviando el PDF aprobado:', pdfErr);
+    }
+
+    res.json({ success: true, message: 'Pago aprobado, cliente notificado y PDF enviado.', order });
   } catch (error) {
     console.error('Error al aprobar la orden:', error);
     res.status(500).json({ error: 'Error al aprobar la orden' });
@@ -799,7 +911,6 @@ client.on('message', async (msg) => {
       }
     }
 
-    // PASO 1 DEVOLUCIÓN/CAMBIO: INGRESO DE ORDEN Y VALIDACIÓN DE EXISTENCIA
     if (session.step === 'RETURN_ASK_ORDER_ID') {
       const cleanOrderId = text.replace('#', '').trim();
 
@@ -831,7 +942,6 @@ client.on('message', async (msg) => {
       );
     }
 
-    // PASO 2 DEVOLUCIÓN/CAMBIO: PREGUNTAR ESTADO DEL PRODUCTO
     if (session.step === 'RETURN_ASK_CONDITION') {
       let conditionText = '';
       if (text === '1') conditionText = 'Excelente estado, sin uso con empaque original';
@@ -849,7 +959,6 @@ client.on('message', async (msg) => {
       );
     }
 
-    // PASO 3 DEVOLUCIÓN/CAMBIO: REQUERIR FOTO DEL PRODUCTO
     if (session.step === 'RETURN_ASK_REASON') {
       await prisma.userSession.update({
         where: { phone: from },
@@ -862,7 +971,6 @@ client.on('message', async (msg) => {
       );
     }
 
-    // PASO 4 DEVOLUCIÓN/CAMBIO: RECEPCIÓN Y GUARDADO DE FOTO DEL PRODUCTO
     if (session.step === 'RETURN_ASK_IMAGE') {
       if (msg.hasMedia) {
         const returnReq = await prisma.returnRequest.create({
@@ -903,7 +1011,6 @@ client.on('message', async (msg) => {
       }
     }
 
-    // PASO 5 DEVOLUCIÓN/CAMBIO: RECEPCIÓN DE COMPROBANTE DE PAGO DE ENVÍO
     if (session.step === 'AWAITING_RETURN_PAYMENT_RECEIPT') {
       if (msg.hasMedia) {
         clearInactivityTimer(from);
@@ -1012,13 +1119,20 @@ client.on('message', async (msg) => {
         `${product.description ? `\n📝 _${product.description}_\n` : ''}` +
         `\nPor favor, responde con el *talle / variante* que buscas (${product.sizes.join(', ')}):`;
 
-      const displayImg = (product.images && product.images.length > 0) ? product.images[0] : product.imageUrl;
+      let displayImg = (product.images && product.images.length > 0) ? product.images[0] : product.imageUrl;
 
       if (displayImg) {
         try {
-          const media = await MessageMedia.fromUrl(displayImg.startsWith('/') ? `${process.env.WEB_URL || 'http://localhost:3000'}${displayImg}` : displayImg);
+          const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
+          const fullImgUrl = displayImg.startsWith('http') 
+            ? displayImg 
+            : `${baseUrl.replace(/\/$/, '')}/${displayImg.replace(/^\//, '')}`;
+
+          // ✅ FLAG UNSAFEMIME PARA GARANTIZAR DESCARGA SIN ERRORES DE TIPO MIME
+          const media = await MessageMedia.fromUrl(fullImgUrl, { unsafeMime: true });
           return client.sendMessage(from, media, { caption });
         } catch (e) {
+          console.error('Error al enviar imagen por WhatsApp:', e.message);
           return client.sendMessage(from, caption);
         }
       }
@@ -1255,7 +1369,7 @@ client.on('message', async (msg) => {
         mensajePago = `💳 *Pago con Mercado Pago*\nPuedes abonar el total de *${formattedTotal}* mediante este link de cobro:\n${linkEnviado || 'Consultar link'}`;
         if (config?.mpQrCodeUrl) {
           try {
-            const mediaQr = await MessageMedia.fromUrl(config.mpQrCodeUrl);
+            const mediaQr = await MessageMedia.fromUrl(config.mpQrCodeUrl, { unsafeMime: true });
             await client.sendMessage(from, mediaQr, { caption: 'O escaneá este QR con Mercado Pago:' });
           } catch (e) {}
         }

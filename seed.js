@@ -2,11 +2,14 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('🌱 Iniciando la carga de datos en Supabase...');
+
   const products = [
     {
       name: 'Zapatillas Retro Air Max',
       price: 65000,
-      sizes: [38, 39, 40, 41, 42],
+      category: 'CALZADOS_IMPORTADOS',
+      sizes: ['38', '39', '40', '41', '42'],
       colors: ['Negro', 'Blanco'],
       stock: 15,
       imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600',
@@ -15,48 +18,56 @@ async function main() {
       promoType: 'PERCENTAGE',
       discountPercent: 10,
       isHotSale: true,
-      isBlackFriday: false
+      isBlackFriday: false,
+      isAvailable: true
     },
     {
-      name: 'Urban Street Black',
-      price: 52000,
-      sizes: [39, 40, 41, 42, 43],
-      colors: ['Negro', 'Gris'],
-      stock: 20,
-      imageUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=600',
-      description: 'Estilo urbano para todos los días.',
+      name: 'Perfume Importado Eau de Parfum 100ml',
+      price: 48000,
+      category: 'PERFUMES',
+      sizes: ['100ml'],
+      colors: ['Único'],
+      stock: 10,
+      imageUrl: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=600',
+      description: 'Fragancia duradera y elegante para uso diario u ocasiones especiales.',
       shippingMinutes: 60,
-      promoType: 'TWO_FOR_ONE',
+      promoType: 'NONE',
       discountPercent: 0,
       isHotSale: false,
-      isBlackFriday: true
+      isBlackFriday: false,
+      isAvailable: true
     },
     {
-      name: 'Runner Pro Response',
-      price: 78000,
-      sizes: [37, 38, 39, 40],
-      colors: ['Azul', 'Rosa', 'Blanco'],
-      stock: 10,
-      imageUrl: 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?w=600',
-      description: 'Especiales para alto rendimiento y running.',
+      name: 'Mochila Urbana Impermeable',
+      price: 32000,
+      category: 'MOCHILAS_CARTERAS',
+      sizes: ['Estándar'],
+      colors: ['Negro', 'Gris'],
+      stock: 20,
+      imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600',
+      description: 'Mochila amplia con compartimento reforzado para notebook.',
       shippingMinutes: 30,
       promoType: 'NONE',
       discountPercent: 0,
       isHotSale: false,
-      isBlackFriday: false
+      isBlackFriday: false,
+      isAvailable: true
     }
   ];
 
+  // Garantiza que la ejecución espere a que CADA inserción termine en la base de datos
   for (const product of products) {
-    await prisma.product.create({ data: product });
+    const res = await prisma.product.create({ data: product });
+    console.log(` Insertado: ${res.name} (ID: ${res.id})`);
   }
 
-  console.log('✅ ¡Productos de prueba cargados correctamente!');
+  console.log('✅ ¡Todos los productos fueron confirmados en Supabase!');
 }
 
 main()
   .catch((e) => {
     console.error('❌ Error al cargar productos:', e);
+    process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
