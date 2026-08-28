@@ -356,6 +356,10 @@
     let currentLightboxProductId = null;
     let currentLightboxMediaIndex = 0;
     let currentLightboxMediaList = [];
+    let selectedSize = null;
+    let selectedColor = null;
+    let selectedQty = 1;
+    let shippingAddress = localStorage.getItem('kicks_shipping_addr') || '';
 
     function escapeHTML(str) {
       if (!str) return '';
@@ -524,6 +528,10 @@
         currentLightboxMediaIndex = 0;
       }
 
+      selectedSize = (product.sizes && product.sizes.length === 1) ? product.sizes[0] : null;
+      selectedColor = (product.colors && product.colors.length === 1) ? product.colors[0] : null;
+      selectedQty = 1;
+
       renderLightboxContent(product);
       document.getElementById('lightbox-modal').classList.remove('hidden');
       lucide.createIcons();
@@ -558,8 +566,19 @@
       if (product.promoType === 'TWO_FOR_ONE') promoBadges += `<span class="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase shadow">Llevá 2x1</span> `;
       if (product.promoType === 'PERCENTAGE' && product.discountPercent > 0) promoBadges += `<span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase shadow">-${product.discountPercent}% OFF</span> `;
 
-      const sizesList = (product.sizes || []).map(s => `<span class="border border-gray-200 text-gray-800 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-gray-50 hover:border-gray-400 transition">${s}</span>`).join(' ');
-      const colorsList = (product.colors || []).map(c => `<span class="bg-gray-100 border border-gray-200 text-gray-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg hover:border-gray-400 transition">${escapeHTML(c)}</span>`).join(' ');
+      const sizesList = (product.sizes || []).map(s => `
+        <button type="button" onclick="selectLightboxSize('${escapeHTML(s)}')"
+                class="size-option ${selectedSize === s ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-800 bg-gray-50 hover:border-gray-400'} border text-[11px] font-bold px-2.5 py-1 rounded-lg transition">
+          ${s}
+        </button>
+      `).join(' ');
+
+      const colorsList = (product.colors || []).map(c => `
+        <button type="button" onclick="selectLightboxColor('${escapeHTML(c)}')"
+                class="color-option ${selectedColor === c ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-gray-100 border-gray-200 text-gray-800 hover:border-gray-400'} border text-[11px] font-semibold px-2.5 py-1 rounded-lg transition">
+          ${escapeHTML(c)}
+        </button>
+      `).join(' ');
 
       infoContainer.innerHTML = `
         <div class="space-y-1">
@@ -587,28 +606,47 @@
 
         ${sizesList ? `
           <div>
-            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Talles / Variantes Disponibles</p>
+            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Talle / Variante <span class="text-rose-500">*</span></p>
             <div class="flex flex-wrap gap-1.5">${sizesList}</div>
           </div>
         ` : ''}
 
         ${colorsList ? `
           <div>
-            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Colores Disponibles</p>
+            <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Color <span class="text-rose-500">*</span></p>
             <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">${colorsList}</div>
           </div>
         ` : ''}
+
+        <div>
+          <p class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Cantidad (Stock: ${product.stock})</p>
+          <div class="inline-flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+            <button type="button" onclick="changeLightboxQty(-1, ${Number(product.stock) || 99})"
+                    class="w-9 h-9 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center justify-center transition">
+              <i data-lucide="minus" class="w-4 h-4"></i>
+            </button>
+            <span class="min-w-[40px] text-center text-sm font-black text-gray-900">${selectedQty}</span>
+            <button type="button" onclick="changeLightboxQty(1, ${Number(product.stock) || 99})"
+                    class="w-9 h-9 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center justify-center transition">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
       `;
 
       const currentWebUrl = window.location.origin;
       const formattedPriceWA = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(product.price));
-      const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPriceWA}\n\nHola! quiero comprar el producto: ${product.name}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
-      const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
 
       actionContainer.innerHTML = `
-        <a href="${whatsappUrl}" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg text-xs md:text-sm transition transform hover:-translate-y-0.5">
+        <button onclick="addToCartFromLightbox('${product.id}')"
+                class="w-full bg-white border border-gray-200 hover:border-emerald-500 hover:text-emerald-700 text-gray-800 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm text-xs md:text-sm transition transform hover:-translate-y-0.5 mb-2">
+          <i data-lucide="shopping-cart" class="w-4 h-4 md:w-5 md:h-5"></i>
+          <span>Agregar ${selectedQty} unidad${selectedQty === 1 ? '' : 'es'} al carrito</span>
+        </button>
+        <a id="lightbox-wa-link" href="#" target="_blank" onclick="return openDirectWhatsApp('${product.id}')"
+           class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg text-xs md:text-sm transition transform hover:-translate-y-0.5">
           <i data-lucide="message-circle" class="w-5 h-5"></i>
-          <span>Comprar directamente por WhatsApp</span>
+          <span>Comprar ${selectedQty} unidad${selectedQty === 1 ? '' : 'es'} por WhatsApp</span>
         </a>
       `;
 
@@ -773,9 +811,9 @@
 
         const mainImage = imageList[0];
 
-        const currentWebUrl = window.location.origin;
-        const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPrice}\n\nHola! quiero comprar el producto: ${product.name}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
-        const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
+        const hasColors = product.colors && product.colors.length > 0;
+        const hasSizes = product.sizes && product.sizes.length > 0;
+        const needsChoice = hasColors || hasSizes;
 
         return `
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between group cursor-pointer" onclick="openLightbox('${product.id}', 0)">
@@ -799,11 +837,25 @@
               </div>
             </div>
 
-            <div class="p-2 pt-1" onclick="event.stopPropagation()">
-              <a href="${whatsappUrl}" target="_blank" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow text-[11px] transition">
-                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
-                <span>Comprar</span>
-              </a>
+            <div class="p-2 pt-1 grid grid-cols-2 gap-1.5" onclick="event.stopPropagation()">
+              ${needsChoice ? `
+                <button onclick="event.preventDefault(); openLightbox('${product.id}', 0);"
+                        class="w-full bg-white hover:bg-amber-50 border border-amber-300 text-amber-700 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow-sm text-[11px] transition active:scale-95">
+                  <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
+                  <span>Elegir</span>
+                </button>
+              ` : `
+                <button onclick="event.preventDefault(); addToCart('${product.id}');"
+                        class="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow-sm text-[11px] transition active:scale-95">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                  <span>Carrito</span>
+                </button>
+              `}
+              <button onclick="event.preventDefault(); openLightbox('${product.id}', 0); setTimeout(() => document.getElementById('lightbox-wa-link')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);"
+                      class="w-full ${needsChoice ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 shadow text-[11px] transition active:scale-95">
+                <i data-lucide="${needsChoice ? 'palette' : 'message-circle'}" class="w-3.5 h-3.5"></i>
+                <span>${needsChoice ? 'Elegir y Comprar' : 'Comprar'}</span>
+              </button>
             </div>
           </div>
         `;
@@ -812,10 +864,484 @@
       lucide.createIcons();
     }
 
+    // =============== CARRITO ===============
+    const CART_STORAGE_KEY = 'kicks_cart_v1';
+    let cart = [];
+
+    function findProductById(id) {
+      return allProducts.find(p => p.id === id) || null;
+    }
+
+    function loadCart() {
+      try {
+        const raw = localStorage.getItem(CART_STORAGE_KEY);
+        if (raw) cart = JSON.parse(raw) || [];
+      } catch (e) { cart = []; }
+    }
+
+    function saveCart() {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    }
+
+    function getCartTotals() {
+      let subtotal = 0;
+      let count = 0;
+      cart.forEach(item => {
+        const p = findProductById(item.id);
+        if (p) {
+          subtotal += Number(p.price) * Number(item.qty);
+          count += Number(item.qty);
+        }
+      });
+      return { subtotal, count };
+    }
+
+    function updateCartBadge() {
+      const { count } = getCartTotals();
+      const badge = document.getElementById('cart-badge');
+      if (badge) {
+        if (count > 0) {
+          badge.classList.remove('hidden');
+          badge.textContent = count > 99 ? '99+' : String(count);
+        } else {
+          badge.classList.add('hidden');
+        }
+      }
+    }
+
+    function selectLightboxSize(size) {
+      selectedSize = size;
+      const p = findProductById(currentLightboxProductId);
+      if (p) renderLightboxContent(p);
+    }
+
+    function selectLightboxColor(color) {
+      selectedColor = color;
+      const p = findProductById(currentLightboxProductId);
+      if (p) renderLightboxContent(p);
+    }
+
+    function changeLightboxQty(delta, stock) {
+      const next = Number(selectedQty) + Number(delta);
+      if (next < 1) return;
+      if (next > Math.max(1, Number(stock) || 99)) return;
+      selectedQty = next;
+      const p = findProductById(currentLightboxProductId);
+      if (p) renderLightboxContent(p);
+    }
+
+    function validateVariantSelection(product) {
+      if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+        alert('Por favor, seleccioná un talle / variante.');
+        return false;
+      }
+      if (product.colors && product.colors.length > 0 && !selectedColor) {
+        alert('Por favor, seleccioná un color.');
+        return false;
+      }
+      return true;
+    }
+
+    function addToCartFromLightbox(productId) {
+      const product = findProductById(productId);
+      if (!product) return;
+      if (!validateVariantSelection(product)) return;
+      addToCart(productId, true, selectedSize, selectedColor, selectedQty);
+    }
+
+    function buildSingleProductWhatsAppMessage(product, qty, size, color) {
+      const currentWebUrl = window.location.origin;
+      const price = Number(product.price);
+      const formattedPrice = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price);
+      const lines = [];
+      lines.push('Hola! quiero comprar el producto:');
+      lines.push(`✅ Producto: ${product.name} (ID: ${product.id})`);
+      lines.push(`   Cantidad: ${qty}`);
+      if (size) lines.push(`   Talle: ${size}`);
+      if (color) lines.push(`   Color: ${color}`);
+      lines.push(`   Precio: ${formattedPrice}`);
+      if (shippingAddress && shippingAddress.trim().length > 3) {
+        lines.push('');
+        lines.push(`📍 Envío: ${shippingAddress.trim()}`);
+      }
+      if (currentUser && currentUser.id) {
+        lines.push(`   USER: ${currentUser.id}`);
+      }
+      lines.push('');
+      lines.push(`🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`);
+      return lines.join('\n');
+    }
+
+    function openDirectWhatsApp(productId) {
+      const product = findProductById(productId);
+      if (!product) return false;
+      if (!validateVariantSelection(product)) return false;
+      const message = buildSingleProductWhatsAppMessage(product, selectedQty, selectedSize, selectedColor);
+      window.open(`https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`, '_blank');
+      return false;
+    }
+
+    function addToCart(productId, andOpen = false, size = null, color = null, qty = 1) {
+      const product = findProductById(productId);
+      if (!product) return;
+      const needsSize = product.sizes && product.sizes.length > 0;
+      const needsColor = product.colors && product.colors.length > 0;
+      const finalSize = size || (needsSize && product.sizes.length === 1 ? product.sizes[0] : null);
+      const finalColor = color || (needsColor && product.colors.length === 1 ? product.colors[0] : null);
+      if (needsSize && !finalSize) { alert('Seleccioná un talle.'); return; }
+      if (needsColor && !finalColor) { alert('Seleccioná un color.'); return; }
+      const finalQty = Math.max(1, Math.min(Number(qty) || 1, Number(product.stock) || 99));
+      const existing = cart.find(it => it.id === productId && it.size === finalSize && it.color === finalColor);
+      if (existing) {
+        existing.qty = Math.min(Number(existing.qty) + finalQty, Number(product.stock) || 99);
+      } else {
+        cart.push({ id: productId, qty: finalQty, size: finalSize, color: finalColor });
+      }
+      saveCart();
+      updateCartBadge();
+
+      if (andOpen) {
+        openCartModal();
+      } else {
+        const btn = document.getElementById('cart-floating-btn');
+        if (btn) {
+          btn.classList.add('ring-4', 'ring-emerald-300');
+          setTimeout(() => btn.classList.remove('ring-4', 'ring-emerald-300'), 450);
+        }
+      }
+    }
+
+    function itemKey(it) {
+      return `${it.id}__${it.size || ''}__${it.color || ''}`;
+    }
+
+    function removeFromCart(key) {
+      cart = cart.filter(it => itemKey(it) !== key);
+      saveCart();
+      updateCartBadge();
+      renderCartModal();
+    }
+
+    function changeQty(key, delta) {
+      const item = cart.find(it => itemKey(it) === key);
+      if (!item) return;
+      const product = findProductById(item.id);
+      const nextQty = Number(item.qty) + Number(delta);
+      if (nextQty <= 0) {
+        removeFromCart(key);
+        return;
+      }
+      const maxStock = product ? (Number(product.stock) || 99) : 99;
+      item.qty = Math.min(nextQty, maxStock);
+      saveCart();
+      updateCartBadge();
+      renderCartModal();
+    }
+
+    function setCartItemSize(key, size) {
+      const item = cart.find(it => itemKey(it) === key);
+      if (!item) return;
+      item.size = size || null;
+      saveCart();
+      renderCartModal();
+    }
+
+    function setCartItemColor(key, color) {
+      const item = cart.find(it => itemKey(it) === key);
+      if (!item) return;
+      item.color = color || null;
+      saveCart();
+      renderCartModal();
+    }
+
+    function setShippingAddress(val) {
+      shippingAddress = val || '';
+      localStorage.setItem('kicks_shipping_addr', shippingAddress);
+      const waBtn = document.getElementById('cart-whatsapp-btn');
+      if (waBtn) {
+        const waMessage = buildCartWhatsAppMessage();
+        if (waMessage) waBtn.href = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(waMessage)}`;
+      }
+    }
+
+    function clearCart() {
+      cart = [];
+      saveCart();
+      updateCartBadge();
+      renderCartModal();
+    }
+
+    function buildCartWhatsAppMessage() {
+      if (cart.length === 0) return null;
+      const webUrl = window.location.origin;
+      const lines = [];
+      lines.push('🛒 *PEDIDO MÚLTIPLE*');
+      lines.push('');
+      let subtotal = 0;
+      cart.forEach((item, idx) => {
+        const p = findProductById(item.id);
+        if (!p) return;
+        const qty = Number(item.qty);
+        const price = Number(p.price);
+        const itemTotal = price * qty;
+        subtotal += itemTotal;
+        const fmtPrice = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price);
+        const fmtTotal = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(itemTotal);
+        lines.push(`${idx + 1}. ${p.name}`);
+        lines.push(`   Cantidad: ${qty} × ${fmtPrice} = ${fmtTotal}`);
+        if (item.size) lines.push(`   Talle: ${item.size}`);
+        if (item.color) lines.push(`   Color: ${item.color}`);
+        lines.push(`   ID: ${p.id}`);
+        lines.push('');
+      });
+      const fmtSubtotal = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(subtotal);
+      lines.push(`📦 *Subtotal: ${fmtSubtotal}*`);
+      lines.push('');
+      if (shippingAddress && shippingAddress.trim().length > 3) {
+        lines.push(`📍 Envío: ${shippingAddress.trim()}`);
+        lines.push('');
+      }
+      if (currentUser && currentUser.id) {
+        lines.push(`USER: ${currentUser.id}`);
+      }
+      lines.push('Hola! quiero comprar estos productos.');
+      lines.push(`🛒 Ver tienda: ${webUrl}`);
+      return lines.join('\n');
+    }
+
+    function renderCartModal() {
+      const listEl = document.getElementById('cart-items-list');
+      const footerEl = document.getElementById('cart-footer');
+      const summaryCount = document.getElementById('cart-summary-count');
+      const subTotalEl = document.getElementById('cart-subtotal');
+      const totalEl = document.getElementById('cart-total');
+      const waBtn = document.getElementById('cart-whatsapp-btn');
+
+      if (!listEl) return;
+
+      if (cart.length === 0) {
+        listEl.innerHTML = `
+          <div class="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <div class="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center text-gray-400 mb-3">
+              <i data-lucide="shopping-cart" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-sm font-bold text-gray-800 mb-1">Tu carrito está vacío</h3>
+            <p class="text-xs text-gray-500 max-w-xs">Explorá el catálogo y agregá los productos que te gusten.</p>
+          </div>
+        `;
+        if (footerEl) footerEl.classList.add('hidden');
+        if (summaryCount) summaryCount.textContent = '0 productos';
+        lucide.createIcons();
+        return;
+      }
+
+      const { subtotal, count } = getCartTotals();
+      const fmtARS = v => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(v));
+
+      listEl.innerHTML = cart.map(item => {
+        const p = findProductById(item.id);
+        if (!p) return '';
+        const key = itemKey(item);
+        const encodedKey = escapeHTML(key);
+        const img = (p.images && p.images[0]) || p.imageUrl || FALLBACK_IMAGE;
+        const totalItem = Number(p.price) * Number(item.qty);
+
+        const sizeOptions = (p.sizes || []).map(s => `
+          <option value="${escapeHTML(s)}" ${item.size === s ? 'selected' : ''}>${s}</option>
+        `).join('');
+        const colorOptions = (p.colors || []).map(c => `
+          <option value="${escapeHTML(c)}" ${item.color === c ? 'selected' : ''}>${escapeHTML(c)}</option>
+        `).join('');
+
+        return `
+          <div class="flex gap-3 bg-gray-50 border border-gray-100 rounded-xl p-2.5">
+            <img src="${escapeHTML(img)}" onerror="this.onerror=null; this.src='${FALLBACK_IMAGE}';"
+                 class="w-20 h-20 object-cover rounded-lg bg-white border border-gray-200 flex-shrink-0"
+                 alt="${escapeHTML(p.name)}">
+            <div class="flex-1 flex flex-col min-w-0 gap-1.5">
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-xs font-bold text-gray-800 leading-tight line-clamp-2">${escapeHTML(p.name)}</h4>
+                <button onclick="removeFromCart('${encodedKey}')"
+                        class="text-gray-400 hover:text-red-600 transition flex-shrink-0 -mt-0.5 -mr-0.5 w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
+              <div class="text-[11px] font-black text-emerald-700">${fmtARS(p.price)} c/u</div>
+
+              <div class="grid grid-cols-2 gap-1.5">
+                ${sizeOptions ? `
+                  <select onchange="setCartItemSize('${encodedKey}', this.value)"
+                          class="text-[11px] border border-gray-200 rounded-lg p-1.5 bg-white outline-none focus:border-emerald-500">
+                    <option value="">Talle...</option>
+                    ${sizeOptions}
+                  </select>
+                ` : '<div></div>'}
+                ${colorOptions ? `
+                  <select onchange="setCartItemColor('${encodedKey}', this.value)"
+                          class="text-[11px] border border-gray-200 rounded-lg p-1.5 bg-white outline-none focus:border-emerald-500">
+                    <option value="">Color...</option>
+                    ${colorOptions}
+                  </select>
+                ` : '<div></div>'}
+              </div>
+
+              <div class="flex items-center justify-between mt-auto pt-1">
+                <div class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg p-0.5">
+                  <button onclick="changeQty('${encodedKey}', -1)"
+                          class="w-7 h-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md flex items-center justify-center transition">
+                    <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <span class="min-w-[24px] text-center text-xs font-black text-gray-900">${item.qty}</span>
+                  <button onclick="changeQty('${encodedKey}', 1)"
+                          class="w-7 h-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md flex items-center justify-center transition">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+                <div class="text-sm font-black text-gray-900">${fmtARS(totalItem)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (summaryCount) summaryCount.textContent = `${count} producto${count === 1 ? '' : 's'}`;
+      if (subTotalEl) subTotalEl.textContent = fmtARS(subtotal);
+      if (totalEl) totalEl.textContent = fmtARS(subtotal);
+      if (footerEl) footerEl.classList.remove('hidden');
+
+      const addrInput = document.getElementById('cart-address-input');
+      if (addrInput) addrInput.value = shippingAddress || '';
+
+      const waMessage = buildCartWhatsAppMessage();
+      if (waBtn && waMessage) {
+        waBtn.href = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(waMessage)}`;
+      }
+
+      lucide.createIcons();
+    }
+
+    function validateCartBeforeWhatsApp() {
+      let firstMissing = null;
+      for (const item of cart) {
+        const p = findProductById(item.id);
+        if (!p) continue;
+        if (p.sizes && p.sizes.length > 0 && !item.size) { firstMissing = `Falta talle en ${p.name}`; break; }
+        if (p.colors && p.colors.length > 0 && !item.color) { firstMissing = `Falta color en ${p.name}`; break; }
+      }
+      if (firstMissing) { alert(firstMissing); return false; }
+      if (!shippingAddress || shippingAddress.trim().length < 5) {
+        alert('Por favor, ingresá tu dirección de envío (Calle, Número, Ciudad).');
+        return false;
+      }
+      return true;
+    }
+
+    function openCartModal() {
+      const modal = document.getElementById('cart-modal');
+      if (modal) {
+        renderCartModal();
+        modal.classList.remove('hidden');
+      }
+    }
+
+    function closeCartModal() {
+      const modal = document.getElementById('cart-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function continueShopping() {
+      closeCartModal();
+      closeLightbox();
+      const grid = document.getElementById('products-grid');
+      if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       renderUserHeader();
       fetchProducts();
+      loadCart();
+      updateCartBadge();
     });
   </script>
+
+  <!-- BOTÓN FLOTANTE DE CARRITO -->
+  <button id="cart-floating-btn"
+          onclick="openCartModal()"
+          class="fixed bottom-5 right-5 z-40 bg-emerald-600 hover:bg-emerald-700 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition transform hover:scale-110 active:scale-95">
+    <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+    <span id="cart-badge" class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black min-w-[20px] h-5 rounded-full flex items-center justify-center px-1 shadow hidden">0</span>
+  </button>
+
+  <!-- MODAL DEL CARRITO -->
+  <div id="cart-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center hidden z-50 p-0 sm:p-4" onclick="if (event.target.id === 'cart-modal') closeCartModal()">
+    <div class="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+      <!-- Header -->
+      <div class="flex items-center justify-between p-4 border-b border-gray-200">
+        <div class="flex items-center gap-2">
+          <div class="bg-emerald-100 text-emerald-700 w-10 h-10 rounded-xl flex items-center justify-center">
+            <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-black text-gray-900">Tu Pedido</h2>
+            <p id="cart-summary-count" class="text-xs text-gray-500">0 productos</p>
+          </div>
+        </div>
+        <button onclick="closeCartModal()" class="text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 w-9 h-9 rounded-full flex items-center justify-center transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Lista -->
+      <div id="cart-items-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <!-- Items renderizados por JS -->
+      </div>
+
+      <!-- Footer: Totales + Dirección + Botón WhatsApp -->
+      <div id="cart-footer" class="border-t border-gray-200 p-4 space-y-3 hidden">
+        <div class="space-y-1.5 text-sm">
+          <div class="flex items-center justify-between text-gray-600">
+            <span>Subtotal</span>
+            <span id="cart-subtotal">$0</span>
+          </div>
+          <div class="flex items-center justify-between text-xs text-gray-500">
+            <span>Envío</span>
+            <span id="cart-shipping-label">A confirmar</span>
+          </div>
+          <div class="flex items-center justify-between text-lg font-black text-gray-900 pt-1.5 border-t border-gray-100">
+            <span>TOTAL</span>
+            <span id="cart-total">$0</span>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+          <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wider">
+            📍 Dirección de envío
+          </label>
+          <textarea id="cart-address-input" rows="2"
+                    oninput="setShippingAddress(this.value)"
+                    placeholder="Calle, Número, Ciudad / Localidad (ej: Av. Colón 123, Córdoba)"
+                    class="w-full text-xs border border-gray-300 rounded-lg p-2 bg-white outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"></textarea>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2">
+          <button onclick="continueShopping()"
+                  class="w-full sm:w-1/2 bg-white border border-gray-200 hover:border-emerald-500 hover:text-emerald-700 text-gray-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm transition transform hover:-translate-y-0.5">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Seguir comprando</span>
+          </button>
+          <a id="cart-whatsapp-btn" href="#" target="_blank"
+             onclick="return validateCartBeforeWhatsApp()"
+             class="w-full sm:w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition transform hover:-translate-y-0.5">
+            <i data-lucide="message-circle" class="w-5 h-5"></i>
+            <span>Confirmar pedido por WhatsApp</span>
+          </a>
+        </div>
+        <button onclick="clearCart()" class="w-full text-xs text-gray-500 hover:text-red-600 py-1.5 transition">
+          Vaciar carrito
+        </button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

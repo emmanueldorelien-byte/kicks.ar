@@ -352,7 +352,7 @@ app.post('/api/returns/reject', async (req, res) => {
       `❌ *SOLICITUD DE ${returnReq.type} DENEGADA*\n\n` +
       `Lamentablemente no podemos proceder con tu solicitud para la Orden *#${returnReq.orderId.slice(0, 8)}*.\n` +
       `Motivo: ${reason || 'El producto no cumple con los requisitos de estado (debe conservarse en óptimas condiciones y con empaque original).'}\n\n` +
-      `📩 Consultas o soporte a: *soportekicks@gmail.com*`;
+      `📩 Consultas o soporte a: relaxmy89@gmail.com`;
 
     await client.sendMessage(returnReq.phone, mensajeRechazado);
     res.json({ success: true, message: 'Solicitud rechazada y cliente notificado.', returnReq });
@@ -756,7 +756,7 @@ app.post('/api/orders/approve', async (req, res) => {
       `Hola! Te confirmamos que tu pago para la Orden *#${order.id.slice(0, 8)}* ha sido validado con éxito.\n\n` +
       `📦 *Estado:* Su pedido ya se encuentra en preparación para el despacho.\n` +
       `Te adjuntamos a continuación tu *comprobante de pago actualizado* en formato PDF. ¡Muchas gracias por tu compra!\n\n` +
-      `📩 Soporte: *soportekicks@gmail.com*`;
+      `📩 Soporte: relaxmy89@gmail.com`;
 
     await client.sendMessage(order.phone, mensajeAprobado);
 
@@ -857,7 +857,6 @@ client.on('message', async (msg) => {
 
     const sendMainMenu = async () => {
       await prisma.userSession.update({ where: { phone: from }, data: { step: 'IDLE' } });
-      const webUrl = process.env.WEB_URL || 'http://localhost:3000';
       return client.sendMessage(from, 
         `👋 *¡Hola! Bienvenido a KICKS*\n\n` +
         `¿En qué podemos ayudarte hoy?\n\n` +
@@ -869,16 +868,15 @@ client.on('message', async (msg) => {
       );
     };
 
-    if (session.step === 'IDLE' && !text.includes('quiero comprar el producto')) {
+    if (session.step === 'IDLE' && !text.includes('quiero comprar el producto') && !text.includes('PEDIDO MÚLTIPLE') && !text.includes('PEDIDO MULTIPLE') && !text.includes('quiero comprar estos productos')) {
       const option = text.toLowerCase();
 
       if (option === '1' || option.includes('comprar') || option.includes('compra')) {
-        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+        const webUrl = process.env.WEB_URL || 'https://kicks-ar.vercel.app/';
         return client.sendMessage(from, 
-          `🛒 *Catálogo Online KICKS*\n\n` +
           `Puedes explorar nuestros productos y realizar tu pedido directamente aquí:\n` +
-          `👉 ${webUrl}\n\n` +
-          `Solo selecciona tu producto y presiona *"Comprar por WhatsApp"*.`
+          `👉 ${webUrl}`,
+          { linkPreview: false }
         );
       } else if (option === '2' || option.includes('cambio')) {
         await prisma.userSession.update({
@@ -936,7 +934,7 @@ client.on('message', async (msg) => {
             let displayImg = (product.images && product.images.length > 0) ? product.images[0] : product.imageUrl;
             if (displayImg) {
               try {
-                const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
+                const baseUrl = process.env.WEB_URL || 'https://kicks-ar.vercel.app/';
                 const fullImgUrl = displayImg.startsWith('http')
                   ? displayImg
                   : `${baseUrl.replace(/\/$/, '')}/${displayImg.replace(/^\//, '')}`;
@@ -958,6 +956,7 @@ client.on('message', async (msg) => {
       }
     }
 
+    // --- REINICIO Y VOLVER AL MENÚ SI NO SE ENCUENTRA LA ORDEN ---
     if (session.step === 'RETURN_ASK_ORDER_ID') {
       const cleanOrderId = text.replace('#', '').trim();
 
@@ -966,11 +965,13 @@ client.on('message', async (msg) => {
       });
 
       if (!existingOrder) {
-        return client.sendMessage(from, 
+        await client.sendMessage(from, 
           `⚠️ *Orden no encontrada*\n\n` +
           `No encontramos ningún pedido registrado con el código *"${cleanOrderId}"*.\n` +
-          `Por favor, verifica el número de orden e ingrésalo nuevamente:`
+          `Redirigiendo al menú principal...`
         );
+
+        return sendMainMenu();
       }
 
       await prisma.userSession.update({
@@ -1104,6 +1105,28 @@ client.on('message', async (msg) => {
         return client.sendMessage(from, '👍 ¡Excelente! Continuemos. Ingresa tu *dirección completa de envío* (Calle, Número, Ciudad):');
       } else if (choice === '2' || choice.toLowerCase().includes('anular') || choice.toLowerCase().includes('eliminar')) {
         clearInactivityTimer(from);
+
+        const pendingOrders = await prisma.order.findMany({
+          where: {
+            phone: from,
+            status: { in: ['PENDING_PAYMENT', 'PAYMENT_IN_REVIEW', 'PENDING'] }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        let cancelledOrderMsg = '';
+        if (pendingOrders.length > 0) {
+          const ids = pendingOrders.map(o => `#${o.id.slice(0, 8)}`).join(', ');
+          await prisma.order.updateMany({
+            where: {
+              phone: from,
+              status: { in: ['PENDING_PAYMENT', 'PAYMENT_IN_REVIEW', 'PENDING'] }
+            },
+            data: { status: 'CANCELLED' }
+          });
+          cancelledOrderMsg = ` Solicitud/es cancelada/s: ${ids}.`;
+        }
+
         await prisma.userSession.update({
           where: { phone: from },
           data: { 
@@ -1117,7 +1140,7 @@ client.on('message', async (msg) => {
             deliveryTimeSlot: null
           }
         });
-        return client.sendMessage(from, '🗑️ *Solicitud anulada.* Si deseas operar nuevamente, responde con *MENU* o visita la tienda web.');
+        return client.sendMessage(from, `🗑️ *Solicitud anulada*.${cancelledOrderMsg} Se limpió el carrito y los datos pendientes.\n\nSi deseas operar nuevamente, responde con *MENU* o visita la tienda web.`);
       } else {
         return client.sendMessage(from, 'Por favor, responde con *1* para continuar o *2* para anular.');
       }
@@ -1133,6 +1156,204 @@ client.on('message', async (msg) => {
       return client.sendMessage(from, 'Anotado. Ingresa tu *dirección completa de envío* (Calle, Número, Ciudad):');
     }
 
+    // --- CAPTURA DE CARRITO MÚLTIPLE ---
+    if (text.includes('PEDIDO MÚLTIPLE') || text.includes('quiero comprar estos productos') || text.includes('PEDIDO MULTIPLE')) {
+      const matchUser = text.match(/USER:\s*([a-f0-9\-]+)/i);
+      const userId = matchUser ? matchUser[1].trim() : null;
+
+      const matchShipping = text.match(/(?:Envío|Direcci[oó]n|Domicilio|Entrega)\s*[:：]\s*([^\n\r]+)/i);
+      const providedShipping = matchShipping ? matchShipping[1].trim() : null;
+
+      const blocksRegex = /\d+\.\s*([^\n]+)[\s\S]*?Cantidad:\s*(\d+)([\s\S]*?)ID:\s*([a-f0-9\-]+)/gi;
+      const rawItems = [];
+      let bMatch;
+      while ((bMatch = blocksRegex.exec(text)) !== null) {
+        const blockChunk = bMatch[0];
+        const sizeMatch = blockChunk.match(/Talle:\s*([^\n\r]+)/i);
+        const colorMatch = blockChunk.match(/Color:\s*([^\n\r]+)/i);
+        rawItems.push({
+          nameRaw: bMatch[1].trim(),
+          qtyRaw: bMatch[2],
+          productId: bMatch[4].trim(),
+          sizeRaw: sizeMatch ? sizeMatch[1].trim() : null,
+          colorRaw: colorMatch ? colorMatch[1].trim() : null
+        });
+      }
+
+      if (rawItems.length === 0) {
+        const idPositions = [];
+        const idRegex = /ID:\s*([a-f0-9\-]+)/gi;
+        let idMatch;
+        while ((idMatch = idRegex.exec(text)) !== null) {
+          idPositions.push({ id: idMatch[1].trim(), index: idMatch.index });
+        }
+        for (const pos of idPositions) {
+          const beforeId = text.slice(Math.max(0, pos.index - 300), pos.index);
+          const qtyMatch = beforeId.match(/Cantidad:\s*(\d+)/i);
+          const qty = qtyMatch ? qtyMatch[1] : '1';
+          const sizeMatch = beforeId.match(/Talle:\s*([^\n\r]+)/i);
+          const colorMatch = beforeId.match(/Color:\s*([^\n\r]+)/i);
+          rawItems.push({
+            productId: pos.id,
+            qtyRaw: qty,
+            nameRaw: '',
+            sizeRaw: sizeMatch ? sizeMatch[1].trim() : null,
+            colorRaw: colorMatch ? colorMatch[1].trim() : null
+          });
+        }
+      }
+
+      const queue = [];
+      const errores = [];
+
+      for (const it of rawItems) {
+        const qty = Math.max(1, parseInt(it.qtyRaw || '1', 10) || 1);
+        const product = await prisma.product.findUnique({ where: { id: it.productId } });
+        if (!product || product.isAvailable === false) {
+          errores.push(`- ID ${it.productId}: no disponible`);
+          continue;
+        }
+        if (Number(product.stock) < qty) {
+          errores.push(`- *${product.name}*: stock insuficiente (hay ${product.stock}, pediste ${qty})`);
+          continue;
+        }
+
+        let size = null;
+        if (it.sizeRaw && product.sizes && product.sizes.length > 0) {
+          const up = it.sizeRaw.toUpperCase();
+          size = product.sizes.find(s => String(s).trim().toUpperCase() === up) || it.sizeRaw;
+        } else if (product.sizes && product.sizes.length === 1) {
+          size = product.sizes[0];
+        }
+
+        let color = null;
+        if (it.colorRaw && product.colors && product.colors.length > 0) {
+          const low = it.colorRaw.toLowerCase();
+          color = product.colors.find(c => c.trim().toLowerCase() === low) || it.colorRaw;
+        } else if (product.colors && product.colors.length === 1) {
+          color = product.colors[0];
+        }
+
+        queue.push({
+          productId: product.id,
+          name: product.name,
+          qty,
+          size,
+          color,
+          needsSize: !!(product.sizes && product.sizes.length > 0 && !size),
+          needsColor: !!(product.colors && product.colors.length > 0 && !color)
+        });
+      }
+
+      if (queue.length === 0) {
+        return client.sendMessage(from,
+          `⚠️ No pudimos cargar los productos del carrito${errores.length ? `:\n${errores.join('\n')}` : '.'}\n\nPor favor, volvé a intentarlo desde la tienda.`
+        );
+      }
+
+      const allResolved = queue.every(q => !q.needsSize && !q.needsColor);
+      cart = [];
+
+      if (allResolved) {
+        let subtotal = 0;
+        const resumenLines = [];
+        for (const [idx, q] of queue.entries()) {
+          const p = await prisma.product.findUnique({ where: { id: q.productId } });
+          let price = Number(p.price);
+          if (p.promoType === 'PERCENTAGE' && p.discountPercent > 0) {
+            price = price - (price * (p.discountPercent / 100));
+          }
+          for (let i = 0; i < q.qty; i++) {
+            cart.push({
+              productId: q.productId,
+              name: q.name,
+              size: q.size,
+              color: q.color,
+              price
+            });
+          }
+          subtotal += price * q.qty;
+          resumenLines.push(`${idx + 1}. *${q.name}* × ${q.qty}` +
+            (q.size ? ` (Talle ${q.size})` : '') +
+            (q.color ? ` (Color ${q.color})` : '') +
+            ` - ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(price * q.qty)}`);
+        }
+        const fmtSub = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(subtotal);
+
+        const updateData = {
+          step: 'ASK_MORE_PRODUCTS',
+          currentProdId: null,
+          currentSize: null,
+          currentColor: null,
+          userId: userId || null,
+          cartJson: JSON.stringify(cart),
+          shippingAddr: providedShipping || null,
+          tempData: null
+        };
+        await prisma.userSession.update({ where: { phone: from }, data: updateData });
+
+        const totalUnidades = queue.reduce((s, it) => s + it.qty, 0);
+        const lines = [];
+        lines.push(`¡Hola! 👋 Soy *Luci*, tu asistente virtual en *KICKS.ar*🛒.\n`);
+        lines.push(`✅ Recibí tu pedido de *${queue.length} artículo${queue.length === 1 ? '' : 's'}* (${totalUnidades} unidades).\n`);
+        lines.push(`Confirmemos los datos:\n`);
+        lines.push(`📋 Resumen:\n${resumenLines.join('\n')}\n`);
+        lines.push(`💰 *Subtotal: ${fmtSub}*`);
+        if (providedShipping) lines.push(`📍 Envío a: *${providedShipping}*`);
+        lines.push(``);
+        lines.push(`¿Deseas agregar *otro producto* a tu compra?\n\n`);
+        lines.push(`1. Sí, quiero agregar otro producto\n`);
+        lines.push(`2. No, continuar con los datos de envío y pago\n\n`);
+        lines.push(`Responde con el número *1* o *2*.`);
+        return client.sendMessage(from, lines.join('\n'));
+      }
+
+      const multiData = { isMulti: true, multiIndex: 0, multiQueue: queue };
+      await prisma.userSession.update({
+        where: { phone: from },
+        data: {
+          step: 'CONFIRM_SIZE',
+          currentProdId: queue[0].productId,
+          userId: userId || null,
+          cartJson: '[]',
+          shippingAddr: providedShipping || null,
+          tempData: JSON.stringify(multiData)
+        }
+      });
+
+      const primerProducto = await prisma.product.findUnique({ where: { id: queue[0].productId } });
+      const q0 = queue[0];
+      const caption =
+        `¡Hola! 👋 Soy *Luci*, tu asistente virtual en *KICKS.ar*🛒.\n\n` +
+        `📦 Recibí tu pedido de *${queue.length} artículo${queue.length === 1 ? '' : 's'}* (${queue.reduce((s, it) => s + it.qty, 0)} unidades en total).\n` +
+        (providedShipping ? `📍 Envío a: *${providedShipping}*\n` : '') +
+        `\nVamos a confirmar uno por uno. Empezamos con:\n` +
+        `*${primerProducto.name}* × ${q0.qty}\n` +
+        (q0.size ? `📏 Talle precargado: *${q0.size}*\n` : '') +
+        (q0.color ? `🎨 Color precargado: *${q0.color}*\n` : '') +
+        `${primerProducto.description ? `\n📝 _${primerProducto.description}_\n` : ''}` +
+        (q0.needsSize
+          ? `\nPor favor, responde con el *talle / variante* (${primerProducto.sizes.join(', ')}):`
+          : q0.needsColor
+            ? `\nPor favor, responde con el *color* (${primerProducto.colors.join(', ')}):`
+            : `\nConfirmado.`);
+
+      let displayImg = (primerProducto.images && primerProducto.images.length > 0) ? primerProducto.images[0] : primerProducto.imageUrl;
+      if (displayImg) {
+        try {
+          const baseUrl = process.env.WEB_URL || 'https://kicks-ar.vercel.app/';
+          const fullImgUrl = displayImg.startsWith('http')
+            ? displayImg
+            : `${baseUrl.replace(/\/$/, '')}/${displayImg.replace(/^\//, '')}`;
+          const media = await MessageMedia.fromUrl(fullImgUrl, { unsafeMime: true });
+          return client.sendMessage(from, media, { caption });
+        } catch (e) {
+          console.error('Error al enviar imagen por WhatsApp:', e.message);
+        }
+      }
+      return client.sendMessage(from, caption);
+    }
+
     // --- CAPTURA DE MENSAJE DE TIENDA (por NOMBRE o por ID) ---
     if (text.includes('quiero comprar el producto')) {
       const match = text.match(/ID:\s*([a-f0-9\-]+)/i);
@@ -1141,14 +1362,24 @@ client.on('message', async (msg) => {
       const matchUser = text.match(/USER:\s*([a-f0-9\-]+)/i);
       const userId = matchUser ? matchUser[1].trim() : null;
 
+      const matchQty = text.match(/Cantidad:\s*(\d+)/i);
+      const providedQty = matchQty ? Math.max(1, parseInt(matchQty[1], 10) || 1) : 1;
+
+      const matchSize = text.match(/Talle:\s*([^\n\r]+)/i);
+      const providedSize = matchSize ? matchSize[1].trim() : null;
+
+      const matchColor = text.match(/Color:\s*([^\n\r]+)/i);
+      const providedColor = matchColor ? matchColor[1].trim() : null;
+
+      const matchShipping = text.match(/(?:Envío|Direcci[oó]n|Domicilio|Entrega)\s*[:：]\s*([^\n\r]+)/i);
+      const providedShipping = matchShipping ? matchShipping[1].trim() : null;
+
       let product = null;
 
-      // ESTRATEGIA 1: Si vino el ID, usarlo directamente
       if (productId) {
         product = await prisma.product.findUnique({ where: { id: productId } });
       }
 
-      // ESTRATEGIA 2: Sin ID → detectar nombre del producto y buscar por coincidencia
       if (!product) {
         const nombreMatch = text.match(/quiero comprar el producto:\s*(.+)$/im);
         let nombreProducto = nombreMatch ? nombreMatch[1].trim() : '';
@@ -1197,31 +1428,103 @@ client.on('message', async (msg) => {
         return client.sendMessage(from, 'Lo sentimos, no pudimos identificar ese producto o ya no se encuentra disponible.');
       }
 
+      let finalSize = null;
+      if (providedSize && product.sizes && product.sizes.length > 0) {
+        const up = providedSize.toUpperCase();
+        finalSize = product.sizes.find(s => String(s).trim().toUpperCase() === up) || providedSize;
+      } else if (product.sizes && product.sizes.length === 1) {
+        finalSize = product.sizes[0];
+      }
+
+      let finalColor = null;
+      if (providedColor && product.colors && product.colors.length > 0) {
+        const low = providedColor.toLowerCase();
+        finalColor = product.colors.find(c => c.trim().toLowerCase() === low) || providedColor;
+      } else if (product.colors && product.colors.length === 1) {
+        finalColor = product.colors[0];
+      }
+
+      const needsSize = product.sizes && product.sizes.length > 0 && !finalSize;
+      const needsColor = product.colors && product.colors.length > 0 && !finalColor;
+
+      let displayPrice = Number(product.price);
+      if (product.promoType === 'PERCENTAGE' && product.discountPercent > 0) {
+        displayPrice = displayPrice - (displayPrice * (product.discountPercent / 100));
+      }
+      const fmtPrice = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(displayPrice);
+
+      let newCart = [];
+      for (let i = 0; i < providedQty; i++) {
+        newCart.push({
+          productId: product.id,
+          name: product.name,
+          size: finalSize,
+          color: finalColor,
+          price: displayPrice
+        });
+      }
+
+      if (!needsSize && !needsColor) {
+        const updateData = {
+          step: 'ASK_MORE_PRODUCTS',
+          currentProdId: null,
+          currentSize: finalSize,
+          currentColor: finalColor,
+          cartJson: JSON.stringify(newCart),
+          userId: userId || null,
+          shippingAddr: providedShipping || null
+        };
+        await prisma.userSession.update({ where: { phone: from }, data: updateData });
+
+        const lines = [];
+        lines.push(`¡Hola! 👋 Soy *Luci*, tu asistente virtual en *KICKS.ar*🛒.\n`);
+        lines.push(`✅ Recibí tu selección. Confirmemos los datos:\n`);
+        lines.push(`📦 Producto: *${product.name}*`);
+        lines.push(`🔢 Cantidad: *${providedQty}*`);
+        if (finalSize) lines.push(`📏 Talle: *${finalSize}*`);
+        if (finalColor) lines.push(`🎨 Color: *${finalColor}*`);
+        lines.push(`💲 Precio unitario: *${fmtPrice}*`);
+        if (providedShipping) lines.push(`📍 Envío a: *${providedShipping}*\n`);
+        lines.push(`\n💰 *Subtotal: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(displayPrice * providedQty)}*\n`);
+        lines.push(`\n¿Deseas agregar *otro producto* a tu compra?\n\n`);
+        lines.push(`1. Sí, quiero agregar otro producto\n`);
+        lines.push(`2. No, continuar con los datos de envío y pago\n\n`);
+        lines.push(`Responde con el número *1* o *2*.`);
+        return client.sendMessage(from, lines.join('\n'));
+      }
+
       await prisma.userSession.update({
         where: { phone: from },
-        data: { 
-          step: 'CONFIRM_SIZE', 
+        data: {
+          step: needsSize ? 'CONFIRM_SIZE' : 'CONFIRM_COLOR',
           currentProdId: product.id,
-          userId: userId 
+          currentSize: finalSize,
+          currentColor: finalColor,
+          userId: userId || null,
+          shippingAddr: providedShipping || null,
+          tempQty: providedQty
         }
       });
 
       const caption = 
         `¡Hola! 👋 Soy *Luci*, tu asistente virtual en *KICKS.ar*🛒.\n\n` +
         `Agregando a tu pedido: *${product.name}*\n` +
+        (finalSize ? `📏 Talle precargado: *${finalSize}*\n` : '') +
+        (finalColor ? `🎨 Color precargado: *${finalColor}*\n` : '') +
+        (providedShipping ? `📍 Envío a: *${providedShipping}*\n` : '') +
         `${product.description ? `\n📝 _${product.description}_\n` : ''}` +
-        `\nPor favor, responde con el *talle / variante* que buscas (${product.sizes.join(', ')}):`;
+        (needsSize
+          ? `\nPor favor, confirma el *talle / variante* (${product.sizes.join(', ')}):`
+          : `\nPor favor, confirma el *color* (${product.colors.join(', ')}):`);
 
       let displayImg = (product.images && product.images.length > 0) ? product.images[0] : product.imageUrl;
 
       if (displayImg) {
         try {
-          const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
+          const baseUrl = process.env.WEB_URL || 'https://kicks-ar.vercel.app/';
           const fullImgUrl = displayImg.startsWith('http') 
             ? displayImg 
             : `${baseUrl.replace(/\/$/, '')}/${displayImg.replace(/^\//, '')}`;
-
-          // ✅ FLAG UNSAFEMIME PARA GARANTIZAR DESCARGA SIN ERRORES DE TIPO MIME
           const media = await MessageMedia.fromUrl(fullImgUrl, { unsafeMime: true });
           return client.sendMessage(from, media, { caption });
         } catch (e) {
@@ -1233,7 +1536,6 @@ client.on('message', async (msg) => {
     }
 
     if (session.step === 'CONFIRM_SIZE') {
-      const sizeInput = text.trim().toUpperCase();
       const product = await prisma.product.findUnique({ where: { id: session.currentProdId } });
 
       if (!product) {
@@ -1241,30 +1543,46 @@ client.on('message', async (msg) => {
         return client.sendMessage(from, 'Ocurrió un problema con el producto seleccionado. Por favor, selecciona nuevamente desde la web.');
       }
 
-      const talleEncontrado = product.sizes.find(s => String(s).trim().toUpperCase() === sizeInput);
+      let talleFinal = session.currentSize;
+      if (!talleFinal) {
+        const sizeInput = text.trim().toUpperCase();
+        const talleEncontrado = product.sizes.find(s => String(s).trim().toUpperCase() === sizeInput);
 
-      if (!talleEncontrado && product.sizes.length > 0) {
+        if (!talleEncontrado && product.sizes.length > 0) {
+          return client.sendMessage(
+            from,
+            `⚠️ El talle *"${text}"* no está disponible para este modelo.\n\n` +
+            `Por favor, elige uno de los siguientes talles disponibles: *${product.sizes.join(', ')}*`
+          );
+        }
+        talleFinal = talleEncontrado || text.trim();
+      }
+
+      const hasColors = product.colors && product.colors.length > 0;
+      const colorPrecargado = session.currentColor;
+
+      if (hasColors && !colorPrecargado) {
+        await prisma.userSession.update({
+          where: { phone: from },
+          data: { step: 'CONFIRM_COLOR', currentSize: talleFinal }
+        });
+
+        const coloresDisponibles = product.colors.join(', ');
         return client.sendMessage(
-          from, 
-          `⚠️ El talle *"${text}"* no está disponible para este modelo.\n\n` +
-          `Por favor, elige uno de los siguientes talles disponibles: *${product.sizes.join(', ')}*`
+          from,
+          `Perfecto. ¿En qué *color* prefieres tu producto?\n\n` +
+          `Colores disponibles: *${coloresDisponibles}*`
         );
       }
 
-      const talleFinal = talleEncontrado || text.trim();
-
       await prisma.userSession.update({
         where: { phone: from },
-        data: { step: 'CONFIRM_COLOR', currentSize: talleFinal }
+        data: { step: 'CONFIRM_COLOR', currentSize: talleFinal, currentColor: colorPrecargado || null }
       });
-
-      const coloresDisponibles = product.colors.length > 0 ? product.colors.join(', ') : 'Único';
-
-      return client.sendMessage(
-        from, 
-        `Perfecto. ¿En qué *color* prefieres tu producto?\n\n` +
-        `Colores disponibles: *${coloresDisponibles}*`
-      );
+      session.step = 'CONFIRM_COLOR';
+      session.currentSize = talleFinal;
+      session.currentColor = colorPrecargado || null;
+      text = 'COLOR_PRELOAD_SKIP';
     }
 
     if (session.step === 'CONFIRM_COLOR') {
@@ -1275,23 +1593,248 @@ client.on('message', async (msg) => {
         return client.sendMessage(from, 'Ocurrió un error al buscar el producto. Intenta reiniciar la compra desde la tienda.');
       }
 
-      const colorInput = text.trim().toLowerCase();
-      const colorEncontrado = product.colors.find(c => c.trim().toLowerCase() === colorInput);
+      let colorFinal = session.currentColor;
+      if (!colorFinal) {
+        const colorInput = text.trim().toLowerCase();
+        const colorEncontrado = product.colors.find(c => c.trim().toLowerCase() === colorInput);
 
-      if (!colorEncontrado && product.colors.length > 0) {
-        return client.sendMessage(
-          from, 
-          `⚠️ El color *"${text}"* no está disponible para este modelo.\n\n` +
-          `Por favor, escribe exactamente uno de los colores disponibles: *${product.colors.join(', ')}*`
-        );
+        if (!colorEncontrado && product.colors.length > 0) {
+          return client.sendMessage(
+            from,
+            `⚠️ El color *"${text}"* no está disponible para este modelo.\n\n` +
+            `Por favor, escribe exactamente uno de los colores disponibles: *${product.colors.join(', ')}*`
+          );
+        }
+        colorFinal = colorEncontrado || text.trim();
       }
-
-      const colorFinal = colorEncontrado || text.trim();
 
       let finalPrice = Number(product.price);
       if (product.promoType === 'PERCENTAGE' && product.discountPercent > 0) {
         finalPrice = finalPrice - (finalPrice * (product.discountPercent / 100));
       }
+
+      const sizeForCart = session.currentSize || null;
+
+      // ---------- LÓGICA DE CARRITO MÚLTIPLE ----------
+      let multiData = null;
+      try { multiData = session.tempData ? JSON.parse(session.tempData) : null; } catch (e) { multiData = null; }
+      let qtyForCurrent = 1;
+      if (multiData && multiData.isMulti && multiData.multiQueue && multiData.multiQueue[multiData.multiIndex]) {
+        qtyForCurrent = Math.max(1, Number(multiData.multiQueue[multiData.multiIndex].qty) || 1);
+      }
+      for (let i = 0; i < qtyForCurrent; i++) {
+        cart.push({
+          productId: product.id,
+          name: product.name,
+          size: sizeForCart,
+          color: colorFinal,
+          price: finalPrice
+        });
+      }
+
+      if (multiData && multiData.isMulti) {
+        const nextIndex = Number(multiData.multiIndex) + 1;
+        const hasNext = nextIndex < multiData.multiQueue.length;
+
+        if (hasNext) {
+          const nextItem = multiData.multiQueue[nextIndex];
+          multiData.multiIndex = nextIndex;
+          const nextProduct = await prisma.product.findUnique({ where: { id: nextItem.productId } });
+
+          const preSize = nextItem.size || null;
+          const preColor = nextItem.color || null;
+          const nextNeedsSize = nextItem.needsSize || (nextProduct && nextProduct.sizes && nextProduct.sizes.length > 0 && !preSize);
+          const nextNeedsColor = nextItem.needsColor || (nextProduct && nextProduct.colors && nextProduct.colors.length > 0 && !preColor);
+
+          const nextStep = nextNeedsSize ? 'CONFIRM_SIZE' : (nextNeedsColor ? 'CONFIRM_COLOR' : 'CONFIRM_SIZE');
+
+          await prisma.userSession.update({
+            where: { phone: from },
+            data: {
+              step: nextStep,
+              cartJson: JSON.stringify(cart),
+              currentProdId: nextItem.productId,
+              currentSize: preSize,
+              currentColor: preColor,
+              tempData: JSON.stringify(multiData)
+            }
+          });
+
+          if (!nextNeedsSize && !nextNeedsColor) {
+            autoAddNextLoop: {
+              const session2 = await prisma.userSession.findUnique({ where: { phone: from } });
+              const product2 = await prisma.product.findUnique({ where: { id: session2.currentProdId } });
+              if (product2) {
+                const hasColors2 = product2.colors && product2.colors.length > 0;
+                if (hasColors2 && !session2.currentColor) break autoAddNextLoop;
+                const colorFinal2 = session2.currentColor;
+                let finalPrice2 = Number(product2.price);
+                if (product2.promoType === 'PERCENTAGE' && product2.discountPercent > 0) {
+                  finalPrice2 = finalPrice2 - (finalPrice2 * (product2.discountPercent / 100));
+                }
+                const multiData2 = JSON.parse(session2.tempData);
+                const qty2 = Math.max(1, Number(multiData2.multiQueue[multiData2.multiIndex].qty) || 1);
+                for (let i = 0; i < qty2; i++) {
+                  cart.push({ productId: product2.id, name: product2.name, size: session2.currentSize, color: colorFinal2, price: finalPrice2 });
+                }
+                const nextIndex2 = Number(multiData2.multiIndex) + 1;
+                if (nextIndex2 < multiData2.multiQueue.length) {
+                  multiData2.multiIndex = nextIndex2;
+                  const next2 = multiData2.multiQueue[nextIndex2];
+                  const nextProd2 = await prisma.product.findUnique({ where: { id: next2.productId } });
+                  const pre2Size = next2.size;
+                  const pre2Color = next2.color;
+                  const next2Step = 'CONFIRM_SIZE';
+                  await prisma.userSession.update({
+                    where: { phone: from },
+                    data: {
+                      step: next2Step,
+                      cartJson: JSON.stringify(cart),
+                      currentProdId: next2.productId,
+                      currentSize: pre2Size,
+                      currentColor: pre2Color,
+                      tempData: JSON.stringify(multiData2),
+                    }
+                  });
+                  if (!next2.needsSize && !next2.needsColor) {
+                    const nc = multiData2;
+                    const queueItems = multiData2.multiQueue;
+                    let curIdx = nextIndex2;
+                    let curSize = pre2Size;
+                    let curColor = pre2Color;
+                    let curProd = nextProd2;
+                    while (curIdx < queueItems.length && !queueItems[curIdx].needsSize && !queueItems[curIdx].needsColor && curProd) {
+                      const item = queueItems[curIdx];
+                      const pr = curProd;
+                      let fp3 = Number(pr.price);
+                      if (pr.promoType === 'PERCENTAGE' && pr.discountPercent > 0) fp3 -= fp3 * pr.discountPercent / 100;
+                      const q3 = Math.max(1, Number(item.qty) || 1);
+                      for (let i = 0; i < q3; i++) cart.push({ productId: pr.id, name: pr.name, size: curSize, color: curColor, price: fp3 });
+                      curIdx++;
+                      if (curIdx >= queueItems.length) break;
+                      const nxt = queueItems[curIdx];
+                      nc.multiIndex = curIdx;
+                      curSize = nxt.size; curColor = nxt.color;
+                      curProd = await prisma.product.findUnique({ where: { id: nxt.productId } });
+                      if (!nxt.needsSize || nxt.needsColor) {
+                        await prisma.userSession.update({
+                          where: { phone: from },
+                          data: {
+                            step: nxt.needsSize ? 'CONFIRM_SIZE' : (nxt.needsColor ? 'CONFIRM_COLOR' : 'CONFIRM_SIZE'),
+                            cartJson: JSON.stringify(cart),
+                            currentProdId: nxt.productId,
+                            currentSize: curSize,
+                            currentColor: curColor,
+                            tempData: JSON.stringify(nc)
+                          }
+                        });
+                        break autoAddNextLoop;
+                      }
+                    }
+                    if (curIdx >= queueItems.length) {
+                      let subtotal = cart.reduce((s, it) => s + Number(it.price), 0);
+                      const fmtSub = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(subtotal);
+                      const resumen = cart.length ? cart.map((it, i) => `${i + 1}. *${it.name}* (Talle ${it.size}, Color ${it.color})`).join('\n') : '';
+                      const savedShipping = session.shippingAddr || null;
+                      if (savedShipping && savedShipping.trim().length > 3) {
+                        await prisma.userSession.update({ where: { phone: from }, data: { step: 'CONFIRM_RECIPIENT', cartJson: JSON.stringify(cart), currentProdId: null, currentSize: null, currentColor: null, tempData: null } });
+                        return client.sendMessage(from,
+                          `✅ *Todos los productos confirmados!* (${cart.length} unidades)\n\n` +
+                          (resumen ? `📋 Resumen:\n${resumen}\n\n` : '') +
+                          `💰 *Subtotal: ${fmtSub}*\n📍 *Envío a:* ${savedShipping}\n\n👤 ¿A *nombre de quién* hay que entregar el pedido? (Nombre y Apellido):`
+                        );
+                      }
+                      await prisma.userSession.update({ where: { phone: from }, data: { step: 'CONFIRM_SHIPPING', cartJson: JSON.stringify(cart), currentProdId: null, currentSize: null, currentColor: null, tempData: null } });
+                      return client.sendMessage(from, `✅ *Todos los productos confirmados!* (${cart.length} unidades)\n\n${resumen ? `📋 Resumen:\n${resumen}\n\n` : ''}💰 *Subtotal: ${fmtSub}*\n\nAhora ingresa tu *dirección completa de envío* (Calle, Número, Ciudad):`);
+                    }
+                  } else {
+                    let subtotal = cart.reduce((s, it) => s + Number(it.price), 0);
+                    const fmtSub = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(subtotal);
+                    const resumen = cart.length ? cart.map((it, i) => `${i + 1}. *${it.name}* (Talle ${it.size}, Color ${it.color})`).join('\n') : '';
+                    const savedShipping = session.shippingAddr || null;
+                    if (savedShipping && savedShipping.trim().length > 3) {
+                      await prisma.userSession.update({ where: { phone: from }, data: { step: 'CONFIRM_RECIPIENT', cartJson: JSON.stringify(cart), currentProdId: null, currentSize: null, currentColor: null, tempData: null } });
+                      return client.sendMessage(from, `✅ *Todos los productos confirmados!* (${cart.length} unidades)\n\n${resumen ? `📋 Resumen:\n${resumen}\n\n` : ''}💰 *Subtotal: ${fmtSub}*\n📍 *Envío a:* ${savedShipping}\n\n👤 ¿A *nombre de quién* hay que entregar el pedido? (Nombre y Apellido):`);
+                    }
+                    await prisma.userSession.update({ where: { phone: from }, data: { step: 'CONFIRM_SHIPPING', cartJson: JSON.stringify(cart), currentProdId: null, currentSize: null, currentColor: null, tempData: null } });
+                    return client.sendMessage(from, `✅ *Todos los productos confirmados!* (${cart.length} unidades)\n\n${resumen ? `📋 Resumen:\n${resumen}\n\n` : ''}💰 *Subtotal: ${fmtSub}*\n\nAhora ingresa tu *dirección completa de envío* (Calle, Número, Ciudad):`);
+                  }
+                }
+              }
+            }
+          }
+
+          const nextCaption =
+            `✅ *${product.name}* × ${qtyForCurrent} agregado/a correctamente.\n\n` +
+            `Siguiente producto (${nextIndex + 1}/${multiData.multiQueue.length}):\n` +
+            `*${nextProduct ? nextProduct.name : 'Producto'}* × ${nextItem.qty}\n` +
+            (preSize ? `📏 Talle precargado: *${preSize}*\n` : '') +
+            (preColor ? `🎨 Color precargado: *${preColor}*\n` : '') +
+            `\nPor favor, ${nextNeedsSize
+              ? `responde con el *talle / variante* (${nextProduct ? nextProduct.sizes.join(', ') : '...'})`
+              : `responde con el *color* (${nextProduct ? nextProduct.colors.join(', ') : '...'})`}:`;
+
+          let nextImg = nextProduct ? ((nextProduct.images && nextProduct.images[0]) || nextProduct.imageUrl) : null;
+          if (nextImg) {
+            try {
+              const baseUrl = process.env.WEB_URL || 'https://kicks-ar.vercel.app/';
+              const fullImgUrl = nextImg.startsWith('http')
+                ? nextImg
+                : `${baseUrl.replace(/\/$/, '')}/${nextImg.replace(/^\//, '')}`;
+              const media = await MessageMedia.fromUrl(fullImgUrl, { unsafeMime: true });
+              return client.sendMessage(from, media, { caption: nextCaption });
+            } catch (e) { console.error('Error img:', e.message); }
+          }
+          return client.sendMessage(from, nextCaption);
+
+        } else {
+          let subtotal = cart.reduce((sum, it) => sum + Number(it.price), 0);
+          const fmtSub = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(subtotal);
+          let resumen = cart.length ? cart.map((it, i) => `${i + 1}. *${it.name}* (Talle ${it.size}, Color ${it.color})`).join('\n') : '';
+          const savedShipping = session.shippingAddr || null;
+
+          if (savedShipping && savedShipping.trim().length > 3) {
+            await prisma.userSession.update({
+              where: { phone: from },
+              data: {
+                step: 'CONFIRM_RECIPIENT',
+                cartJson: JSON.stringify(cart),
+                currentProdId: null,
+                currentSize: null,
+                currentColor: null,
+                tempData: null
+              }
+            });
+            return client.sendMessage(from,
+              `✅ *Todos los productos confirmados!* (${cart.length} unidades)\n\n` +
+              `${resumen ? `📋 Resumen:\n${resumen}\n\n` : ''}` +
+              `💰 *Subtotal: ${fmtSub}*\n` +
+              `📍 *Envío a:* ${savedShipping}\n\n` +
+              `👤 Ahora ¿A *nombre de quién* hay que entregar el pedido? (Nombre y Apellido del destinatario):`
+            );
+          }
+
+          await prisma.userSession.update({
+            where: { phone: from },
+            data: {
+              step: 'CONFIRM_SHIPPING',
+              cartJson: JSON.stringify(cart),
+              currentProdId: null,
+              currentSize: null,
+              currentColor: null,
+              tempData: null
+            }
+          });
+
+          return client.sendMessage(from,
+            `✅ *Todos los productos confirmados!* (${cart.length} unidades)\n\n` +
+            `${resumen ? `📋 Resumen:\n${resumen}\n\n` : ''}` +
+            `💰 *Subtotal: ${fmtSub}*\n\n` +
+            `Ahora ingresa tu *dirección completa de envío* (Calle, Número, Ciudad):`
+          );
+        }
+      }
+      // ---------- FIN LÓGICA DE CARRITO MÚLTIPLE ----------
 
       cart.push({
         productId: product.id,
@@ -1330,15 +1873,25 @@ client.on('message', async (msg) => {
           data: { step: 'AWAITING_EXTRA_PRODUCT_OR_CONTINUE' }
         });
 
-        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+        const webUrl = process.env.WEB_URL || 'https://kicks-ar.vercel.app/';
 
-        return client.sendMessage(from, 
+        return client.sendMessage(from,
           `🛒 ¡Perfecto! Ingresa al catálogo web en el siguiente enlace:\n\n` +
           `👉 ${webUrl}\n\n` +
           `Elige tu siguiente producto y presiona *"Comprar por WhatsApp"* para sumarlo a la lista.\n\n` +
           `_(O responde con la letra *C* para seguir directamente con el pedido si ya no quieres agregar nada más)_`
         );
       } else {
+        const savedShipping = session.shippingAddr || null;
+        if (savedShipping && savedShipping.trim().length > 3) {
+          await prisma.userSession.update({
+            where: { phone: from },
+            data: { step: 'CONFIRM_RECIPIENT' }
+          });
+          return client.sendMessage(from,
+            `Anotado.\n📍 *Envío a:* ${savedShipping}\n\n👤 ¿A *nombre de quién* hay que entregar el pedido? (Nombre y Apellido del destinatario):`
+          );
+        }
         await prisma.userSession.update({
           where: { phone: from },
           data: { step: 'CONFIRM_SHIPPING' }
@@ -1348,7 +1901,24 @@ client.on('message', async (msg) => {
     }
 
     if (session.step === 'AWAITING_EXTRA_PRODUCT_OR_CONTINUE') {
-      return client.sendMessage(from, 
+      if (text.trim().toUpperCase() === 'C') {
+        const savedShipping = session.shippingAddr || null;
+        if (savedShipping && savedShipping.trim().length > 3) {
+          await prisma.userSession.update({
+            where: { phone: from },
+            data: { step: 'CONFIRM_RECIPIENT' }
+          });
+          return client.sendMessage(from,
+            `Perfecto.\n📍 *Envío a:* ${savedShipping}\n\n👤 ¿A *nombre de quién* hay que entregar el pedido? (Nombre y Apellido):`
+          );
+        }
+        await prisma.userSession.update({
+          where: { phone: from },
+          data: { step: 'CONFIRM_SHIPPING' }
+        });
+        return client.sendMessage(from, 'Anotado. Ingresa tu *dirección completa de envío* (Calle, Número, Ciudad):');
+      }
+      return client.sendMessage(from,
         `Elige tu nuevo producto desde la web o responde con la letra *C* para continuar con los datos de envío.`
       );
     }
