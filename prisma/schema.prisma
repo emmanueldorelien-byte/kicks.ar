@@ -1,13 +1,3 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -170,6 +160,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+
+// ... AQUÍ DEBAJO TUS MODELOS (User, Product, Order, etc.) ...
+// ⚠️ ASEGÚRATE DE ELIMINAR EL SEGUNDO "datasource db" QUE ESTÁ AL FINAL (línea 172)
