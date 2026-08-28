@@ -601,9 +601,8 @@
       `;
 
       const currentWebUrl = window.location.origin;
-      const userParam = currentUser ? ` USER:${currentUser.id}` : '';
       const formattedPriceWA = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(product.price));
-      const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPriceWA}\n\nHola! quiero comprar el producto: ${product.name} (ID: ${product.id})${userParam}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
+      const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPriceWA}\n\nHola! quiero comprar el producto: ${product.name}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
       const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
 
       actionContainer.innerHTML = `
@@ -775,8 +774,7 @@
         const mainImage = imageList[0];
 
         const currentWebUrl = window.location.origin;
-        const userParam = currentUser ? ` USER:${currentUser.id}` : '';
-        const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPrice}\n\nHola! quiero comprar el producto: ${product.name} (ID: ${product.id})${userParam}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
+        const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPrice}\n\nHola! quiero comprar el producto: ${product.name}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
         const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
 
         return `

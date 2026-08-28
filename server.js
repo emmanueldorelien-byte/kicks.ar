@@ -906,6 +906,53 @@ client.on('message', async (msg) => {
           `Un representante de nuestro equipo revisará tu mensaje y se pondrá en contacto contigo a la brevedad.\n\n` +
           `También puedes escribirnos a nuestro correo oficial: *soportekicks@gmail.com*`
         );
+      } else if (/^[1-9][0-9]?$/.test(text.trim()) && session.tempData) {
+        try {
+          const candidatosIds = JSON.parse(session.tempData);
+          const opcion = parseInt(text.trim(), 10);
+          if (opcion >= 1 && opcion <= candidatosIds.length) {
+            const productId = candidatosIds[opcion - 1];
+            const product = await prisma.product.findUnique({ where: { id: productId } });
+
+            if (!product || product.isAvailable === false) {
+              return client.sendMessage(from, 'Lo sentimos, este producto no se encuentra disponible.');
+            }
+
+            await prisma.userSession.update({
+              where: { phone: from },
+              data: {
+                step: 'CONFIRM_SIZE',
+                currentProdId: product.id,
+                tempData: null
+              }
+            });
+
+            const caption =
+              `¡Hola! 👋 Soy *Luci*, tu asistente virtual en *KICKS.ar*🛒.\n\n` +
+              `Agregando a tu pedido: *${product.name}*\n` +
+              `${product.description ? `\n📝 _${product.description}_\n` : ''}` +
+              `\nPor favor, responde con el *talle / variante* que buscas (${product.sizes.join(', ')}):`;
+
+            let displayImg = (product.images && product.images.length > 0) ? product.images[0] : product.imageUrl;
+            if (displayImg) {
+              try {
+                const baseUrl = process.env.WEB_URL || 'http://localhost:3000';
+                const fullImgUrl = displayImg.startsWith('http')
+                  ? displayImg
+                  : `${baseUrl.replace(/\/$/, '')}/${displayImg.replace(/^\//, '')}`;
+                const media = await MessageMedia.fromUrl(fullImgUrl, { unsafeMime: true });
+                return client.sendMessage(from, media, { caption });
+              } catch (e) {
+                console.error('Error al enviar imagen por WhatsApp:', e.message);
+              }
+            }
+            return client.sendMessage(from, caption);
+          } else {
+            return client.sendMessage(from, `Opción inválida. Por favor, elige un número entre 1 y ${candidatosIds.length}.`);
+          }
+        } catch (e) {
+          return sendMainMenu();
+        }
       } else {
         return sendMainMenu();
       }
@@ -1086,7 +1133,7 @@ client.on('message', async (msg) => {
       return client.sendMessage(from, 'Anotado. Ingresa tu *dirección completa de envío* (Calle, Número, Ciudad):');
     }
 
-    // --- CAPTURA DE MENSAJE DE TIENDA CON ID Y NOMBRE DE PRODUCTO ---
+    // --- CAPTURA DE MENSAJE DE TIENDA (por NOMBRE o por ID) ---
     if (text.includes('quiero comprar el producto')) {
       const match = text.match(/ID:\s*([a-f0-9\-]+)/i);
       const productId = match ? match[1].trim() : null;
@@ -1094,14 +1141,60 @@ client.on('message', async (msg) => {
       const matchUser = text.match(/USER:\s*([a-f0-9\-]+)/i);
       const userId = matchUser ? matchUser[1].trim() : null;
 
-      if (!productId) {
-        return client.sendMessage(from, 'Lo sentimos, no pudimos identificar el código del producto.');
+      let product = null;
+
+      // ESTRATEGIA 1: Si vino el ID, usarlo directamente
+      if (productId) {
+        product = await prisma.product.findUnique({ where: { id: productId } });
       }
 
-      const product = await prisma.product.findUnique({ where: { id: productId } });
+      // ESTRATEGIA 2: Sin ID → detectar nombre del producto y buscar por coincidencia
+      if (!product) {
+        const nombreMatch = text.match(/quiero comprar el producto:\s*(.+)$/im);
+        let nombreProducto = nombreMatch ? nombreMatch[1].trim() : '';
+
+        if (!nombreProducto) {
+          const nombreMatchSimple = text.match(/:\s*([^:\n\r]+)$/m);
+          if (nombreMatchSimple) nombreProducto = nombreMatchSimple[1].trim();
+        }
+
+        nombreProducto = nombreProducto
+          .replace(/\(.*?\)/g, '')
+          .replace(/\bUSER:\s*\S+/gi, '')
+          .trim();
+
+        if (nombreProducto && nombreProducto.length > 0) {
+          const nombreLimpio = nombreProducto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const todosLosProductos = await prisma.product.findMany({
+            where: { isAvailable: true }
+          });
+
+          const candidatos = todosLosProductos.filter(p => {
+            const n = (p.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (!n) return false;
+            if (n === nombreLimpio) return true;
+            if (n.includes(nombreLimpio) || nombreLimpio.includes(n)) return true;
+            const palabras = nombreLimpio.split(/\s+/).filter(w => w.length >= 3);
+            return palabras.length >= 1 && palabras.every(palabra => n.includes(palabra));
+          });
+
+          if (candidatos.length === 1) {
+            product = candidatos[0];
+          } else if (candidatos.length > 1) {
+            await prisma.userSession.update({
+              where: { phone: from },
+              data: { step: 'IDLE', tempData: JSON.stringify(candidatos.map(c => c.id)) }
+            });
+            const opciones = candidatos.slice(0, 5).map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+            return client.sendMessage(from,
+              `🔍 Encontré *${candidatos.length} productos* con un nombre similar. Por favor, indícame cuál es:\n\n${opciones}\n\nResponde con el *número* (ej: 1, 2, ...)`
+            );
+          }
+        }
+      }
 
       if (!product || product.isAvailable === false) {
-        return client.sendMessage(from, 'Lo sentimos, este producto no se encuentra disponible actualmente o ha sido descontinuado.');
+        return client.sendMessage(from, 'Lo sentimos, no pudimos identificar ese producto o ya no se encuentra disponible.');
       }
 
       await prisma.userSession.update({
@@ -1114,7 +1207,7 @@ client.on('message', async (msg) => {
       });
 
       const caption = 
-        `¡Hola! 👋 Soy *Luci*, tu asistente virtual en *KICKS* 👟.\n\n` +
+        `¡Hola! 👋 Soy *Luci*, tu asistente virtual en *KICKS.ar*🛒.\n\n` +
         `Agregando a tu pedido: *${product.name}*\n` +
         `${product.description ? `\n📝 _${product.description}_\n` : ''}` +
         `\nPor favor, responde con el *talle / variante* que buscas (${product.sizes.join(', ')}):`;
