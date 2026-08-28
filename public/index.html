@@ -9,7 +9,7 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="KICKS - Tienda Oficial">
   <meta property="og:description" content="Encuentra las mejores opciones con envío a todo el país. ¡Envío GRATIS en Córdoba Capital! Comprá directamente por WhatsApp.">
-  <meta property="og:image" content="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1200">
+  <meta property="og:image" content="https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=KICKS%20store%20brand%20banner%20dark%20navy%20blue%20background%20minimalist%20white%20text%20saying%20KICKS.ar%20shopping%20bag%20icon%20clean%20professional%20ecommerce&image_size=landscape_16_9">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -602,7 +602,8 @@
 
       const currentWebUrl = window.location.origin;
       const userParam = currentUser ? ` USER:${currentUser.id}` : '';
-      const message = `Hola, quiero comprar el producto ID: ${product.id}${userParam}\n\n📌 Ver Producto: ${currentWebUrl}`;
+      const formattedPriceWA = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(product.price));
+      const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPriceWA}\n\nHola! quiero comprar el producto: ${product.name} (ID: ${product.id})${userParam}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
       const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
 
       actionContainer.innerHTML = `
@@ -667,6 +668,13 @@
         allProducts = await response.json();
         renderFeaturedMarquee();
         renderFilteredProducts();
+        if (window.location.hash && window.location.hash.startsWith('#product-')) {
+          const hashId = decodeURIComponent(window.location.hash.slice('#product-'.length));
+          const matchProduct = allProducts.find(p => p.id === hashId);
+          if (matchProduct) {
+            setTimeout(() => openLightbox(hashId, 0), 350);
+          }
+        }
       } catch (error) {
         console.error('Error al cargar productos:', error);
       }
@@ -768,7 +776,7 @@
 
         const currentWebUrl = window.location.origin;
         const userParam = currentUser ? ` USER:${currentUser.id}` : '';
-        const message = `Hola, quiero comprar el producto ID: ${product.id}${userParam}\n\n📌 Ver Producto: ${currentWebUrl}`;
+        const message = `👋 ¡Hola! Estoy interesado/a en este artículo:\n\n✅ Producto: *${product.name}*\n💲 Precio: ${formattedPrice}\n\nHola! quiero comprar el producto: ${product.name} (ID: ${product.id})${userParam}\n\n🛒 Ir a la tienda: ${currentWebUrl}#product-${encodeURIComponent(product.id)}`;
         const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
 
         return `
