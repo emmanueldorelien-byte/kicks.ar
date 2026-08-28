@@ -1,25 +1,33 @@
-// api/index.js
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 
-// Reutilización de instancia global para Serverless
-const globalForPrisma = global;
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-
+const prisma = new PrismaClient();
 const app = express();
+
 app.use(express.json());
+
+// Endpoint de prueba de conexión
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const count = await prisma.product.count();
+    res.json({ success: true, message: 'Conexión exitosa a la BD', totalProductos: count });
+  } catch (error) {
+    console.error('ERROR PRISMA VERCEL:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+  }
+});
 
 app.get('/api/products', async (req, res) => {
   try {
-    const products = await prisma.product.findMany({
-      where: { isAvailable: true },
-      orderBy: { createdAt: 'desc' }
-    });
+    const products = await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(products);
   } catch (error) {
-    console.error('Error Prisma Serverless:', error);
-    res.status(500).json({ error: 'Error al conectar con la base de datos', details: error.message });
+    res.status(500).json({ error: 'Error al obtener productos', details: error.message });
   }
 });
 
