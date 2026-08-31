@@ -1,4 +1,4 @@
-# 👟 KICKS.ar | Tienda Multirrubro & Bot de WhatsApp Automático
+# KICKS.ar | Tienda Multirrubro & Bot de WhatsApp Automático
 
 Plataforma e-commerce full-stack diseñada para la venta multirrubro con catálogo web dinámico, autenticación de usuarios, panel administrativo, métricas de ventas, integración con WhatsApp Web para toma de pedidos en tiempo real y generación automática de comprobantes en PDF.
 
