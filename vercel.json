@@ -1,23 +1,67 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "prisma generate",
+  "installCommand": "npm install",
+  "framework": null,
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "includeFiles": "node_modules/**,prisma/**",
+      "memory": 1024
+    }
+  },
+  "headers": [
     {
-      "src": "api/index.js",
-      "use": "@vercel/node"
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
     },
     {
-      "src": "public/**",
-      "use": "@vercel/static"
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
+      "source": "/api/:path*",
+      "destination": "/api/index.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/public/$1"
+      "source": "/",
+      "destination": "/public/index.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/public/admin.html"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/public/:path*"
     }
   ]
 }

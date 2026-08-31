@@ -1,15 +1,32 @@
 require('dotenv').config();
+
+const { URL } = require('url');
+const IS_VERCEL = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+try {
+  const directUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
+  if (directUrl) {
+    const u = new URL(directUrl);
+    if (!IS_VERCEL) {
+      u.hostname = 'aws-0-us-west-2.pooler.supabase.com';
+      u.port = '5432';
+    }
+    if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+    if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
+    u.searchParams.set('connection_limit', String(IS_VERCEL ? '1' : '5'));
+    const finalUrl = u.toString();
+    process.env.DATABASE_URL = finalUrl;
+    process.env.DIRECT_URL = finalUrl;
+  }
+} catch (e) {
+  console.warn('No se pudo ajustar URL de BD:', e.message);
+}
+
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
 const globalForPrisma = global;
 const prisma = globalForPrisma.prisma || new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
   log: ['error', 'warn'],
 });
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

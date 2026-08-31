@@ -1,4 +1,23 @@
 require('dotenv').config();
+
+const { URL } = require('url');
+try {
+  const directUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
+  if (directUrl) {
+    const u = new URL(directUrl);
+    u.hostname = 'aws-0-us-west-2.pooler.supabase.com';
+    u.port = '5432';
+    if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+    if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
+    u.searchParams.set('connection_limit', '5');
+    const finalUrl = u.toString();
+    process.env.DATABASE_URL = finalUrl;
+    process.env.DIRECT_URL = finalUrl;
+  }
+} catch (e) {
+  console.warn('No se pudo ajustar URL de BD:', e.message);
+}
+
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -12,13 +31,7 @@ const XLSX = require('xlsx');
 
 const app = express();
 
-// Instancia de Prisma utilizando variables de entorno protegidas
 const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
   log: ['error', 'warn'],
 });
 

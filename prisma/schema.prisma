@@ -1,3 +1,14 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -9,7 +20,7 @@ model User {
 }
 
 model Product {
-  id              String    @id @default(uuid())
+  id              String    @id @default(dbgenerated("(gen_random_uuid())::text"))
   name            String
   price           Float
   category        Category  @default(VARIOS)
@@ -28,7 +39,7 @@ model Product {
   isBlackFriday   Boolean   @default(false)
   isAvailable     Boolean   @default(true)
   createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime  @default(now()) @updatedAt
 }
 
 model Order {
@@ -154,16 +165,3 @@ enum ReturnStatus {
   COMPLETED
   REJECTED
 }
-generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
-}
-
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
-// ... AQUÍ DEBAJO TUS MODELOS (User, Product, Order, etc.) ...
-// ⚠️ ASEGÚRATE DE ELIMINAR EL SEGUNDO "datasource db" QUE ESTÁ AL FINAL (línea 172)
