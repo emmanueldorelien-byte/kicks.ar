@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const { URL } = require('url');
 const path = require('path');
@@ -11,27 +11,48 @@ const XLSX = require('xlsx');
 
 const IS_VERCEL = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 try {
-  const dbUrl = process.env.DATABASE_URL || '';
-  const directUrl = process.env.DIRECT_URL || dbUrl;
+  const originalDb = process.env.DATABASE_URL || '';
+  const originalDirect = process.env.DIRECT_URL || '';
 
-  if (dbUrl) {
-    const u = new URL(dbUrl);
+  if (originalDb) {
+    const u = new URL(originalDb);
     if (!IS_VERCEL) {
-      u.hostname = 'aws-0-us-west-2.pooler.supabase.com';
-      u.port = '5432';
+      const alreadyPooler = u.hostname.includes('pooler.');
+      if (!alreadyPooler) {
+        const parts = u.hostname.split('.');
+        if (parts.length >= 3) {
+          const regionIndex = parts.findIndex(p => p === 'aws' || p.startsWith('aws-') || p.includes('pooler'));
+          if (regionIndex !== -1) {
+            u.hostname = u.hostname.replace(/\.supabase\.com$/, '.pooler.supabase.com');
+          } else {
+            u.hostname = u.hostname.replace(/\.supabase\.co$/, '.pooler.supabase.co');
+          }
+        } else {
+          u.hostname = 'aws-0-us-west-2.pooler.supabase.com';
+        }
+        u.port = '6543';
+      }
+      if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
     }
     if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
-    if (!IS_VERCEL && !u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
     u.searchParams.set('connection_limit', String(IS_VERCEL ? '1' : '5'));
     process.env.DATABASE_URL = u.toString();
   }
 
-  if (directUrl) {
-    const d = new URL(directUrl);
+  if (originalDirect) {
+    const d = new URL(originalDirect);
+    d.hostname = d.hostname.replace(/\.pooler\./g, '.');
+    if (d.port === '6543') d.port = '5432';
     if (!d.searchParams.has('sslmode')) d.searchParams.set('sslmode', 'require');
+    d.searchParams.delete('pgbouncer');
     process.env.DIRECT_URL = d.toString();
   } else if (process.env.DATABASE_URL) {
-    process.env.DIRECT_URL = process.env.DATABASE_URL;
+    const d = new URL(process.env.DATABASE_URL);
+    d.hostname = d.hostname.replace(/\.pooler\./g, '.');
+    d.port = IS_VERCEL ? (d.port || '5432') : '5432';
+    if (!d.searchParams.has('sslmode')) d.searchParams.set('sslmode', 'require');
+    d.searchParams.delete('pgbouncer');
+    process.env.DIRECT_URL = d.toString();
   }
 } catch (e) {
   console.warn('No se pudo ajustar URL de BD:', e.message);
