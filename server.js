@@ -784,6 +784,21 @@ function clearInactivityTimer(phone) {
   }
 }
 
+// --- ENDPOINT PARA RECIBIR NOTIFICACIONES DIRECTAS DE VERCEL ---
+app.post('/api/send-message', async (req, res) => {
+  const { phone, message } = req.body;
+  try {
+    if (client && client.info) {
+      await client.sendMessage(phone, message);
+      return res.json({ success: true, message: 'Mensaje enviado por WhatsApp.' });
+    }
+    res.status(503).json({ error: 'Cliente de WhatsApp local no conectado.' });
+  } catch (error) {
+    console.error('Error enviando mensaje vía endpoint:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- ACCIONES DE ADMINISTRACIÓN PARA ÓRDENES ---
 app.post('/api/orders/approve', async (req, res) => {
   const { orderId } = req.body;
@@ -998,7 +1013,6 @@ client.on('message', async (msg) => {
       }
     }
 
-    // --- REINICIO Y VOLVER AL MENÚ SI NO SE ENCUENTRA LA ORDEN ---
     if (session.step === 'RETURN_ASK_ORDER_ID') {
       const cleanOrderId = text.replace('#', '').trim();
 

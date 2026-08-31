@@ -105,9 +105,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// FUNCIÓN PARA NOTIFICAR AL BOT LOCAL EN TU CASA VIA PROXY / TÚNEL
 async function safeSendWhatsApp(phone, message) {
-  console.warn(`[WhatsApp - No disponible en Vercel] Mensaje para ${phone}: ${message.slice(0, 80)}...`);
-  return null;
+  const botUrl = process.env.BOT_SERVER_URL;
+  if (!botUrl) {
+    console.warn(`[WhatsApp - Vercel] BOT_SERVER_URL no configurada. Mensaje para ${phone} omitido.`);
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${botUrl.replace(/\/$/, '')}/api/send-message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, message })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error(`❌ Error notificando al bot local desde Vercel:`, error.message);
+    return null;
+  }
 }
 
 function parseImagesInput(imagesField, imageUrlField) {
@@ -613,31 +629,31 @@ app.get('/api/orders/metrics', async (req, res) => {
   }
 });
 
+// ROUTING PROXY DE ACCIONES CON BOT WHATSAPP
 app.post('/api/orders/approve', async (req, res) => {
   const { orderId } = req.body;
+  const botUrl = process.env.BOT_SERVER_URL;
+
+  if (botUrl) {
+    try {
+      const response = await fetch(`${botUrl.replace(/\/$/, '')}/api/orders/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      console.warn('⚠️ No se pudo conectar con el bot local, procesando fallback en BD...');
+    }
+  }
+
   try {
     const order = await prisma.order.update({
       where: { id: orderId },
       data: { status: 'APPROVED' }
     });
-
-    const mensajeAprobado =
-      `🎉 *¡PAGO APROBADO Y CONFIRMADO!*\n\n` +
-      `Hola! Te confirmamos que tu pago para la Orden *#${order.id.slice(0, 8)}* ha sido validado con éxito.\n\n` +
-      `📦 *Estado:* Su pedido ya se encuentra en preparación para el despacho.\n` +
-      `Te adjuntamos a continuación tu *comprobante de pago actualizado* en formato PDF. ¡Muchas gracias por tu compra!\n\n` +
-      `📩 Soporte: relaxmy89@gmail.com`;
-
-    await safeSendWhatsApp(order.phone, mensajeAprobado);
-
-    try {
-      const pdfBuffer = await generateOrderPDFBuffer(order);
-      console.log(`PDF generado para orden ${orderId} (${pdfBuffer.length} bytes) - No enviado por WhatsApp en Vercel`);
-    } catch (pdfErr) {
-      console.error('Error generando PDF aprobado:', pdfErr);
-    }
-
-    res.json({ success: true, message: 'Pago aprobado en BD. WhatsApp no disponible en entorno serverless.', order });
+    res.json({ success: true, message: 'Pago aprobado en BD Vercel.', order });
   } catch (error) {
     console.error('Error al aprobar la orden:', error);
     res.status(500).json({ error: 'Error al aprobar la orden' });
@@ -646,20 +662,28 @@ app.post('/api/orders/approve', async (req, res) => {
 
 app.post('/api/orders/reject', async (req, res) => {
   const { orderId, reason } = req.body;
+  const botUrl = process.env.BOT_SERVER_URL;
+
+  if (botUrl) {
+    try {
+      const response = await fetch(`${botUrl.replace(/\/$/, '')}/api/orders/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      console.warn('⚠️ No se pudo conectar con el bot local, procesando fallback en BD...');
+    }
+  }
+
   try {
     const order = await prisma.order.update({
       where: { id: orderId },
       data: { status: 'REJECTED' }
     });
-
-    const mensajeRechazado =
-      `⚠️ *NOVEDAD SOBRE SU PAGO*\n\n` +
-      `Hola. Lamentablemente no pudimos validar el comprobante para la Orden *#${order.id.slice(0, 8)}*.\n` +
-      `Motivo: ${reason || 'Comprobante ilegible o pago no acreditado'}.\n\n` +
-      `📩 Para recibir asistencia o realizar reclamos, comunícate por mail a: *soportekicks@gmail.com*`;
-
-    await safeSendWhatsApp(order.phone, mensajeRechazado);
-    res.json({ success: true, message: 'Pago denegado en BD. WhatsApp no disponible en entorno serverless.', order });
+    res.json({ success: true, message: 'Pago denegado en BD Vercel.', order });
   } catch (error) {
     console.error('Error al rechazar la orden:', error);
     res.status(500).json({ error: 'Error al rechazar la orden' });
@@ -667,34 +691,29 @@ app.post('/api/orders/reject', async (req, res) => {
 });
 
 app.post('/api/orders/update-status', async (req, res) => {
-  const { orderId, status, customMessage } = req.body;
+  const { orderId, status } = req.body;
+  const botUrl = process.env.BOT_SERVER_URL;
+
+  if (botUrl) {
+    try {
+      const response = await fetch(`${botUrl.replace(/\/$/, '')}/api/orders/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      console.warn('⚠️ No se pudo conectar con el bot local, procesando fallback en BD...');
+    }
+  }
+
   try {
     const order = await prisma.order.update({
       where: { id: orderId },
       data: { status }
     });
-
-    let mensajeWhatsApp = '';
-
-    switch (status) {
-      case 'SHIPPED':
-        mensajeWhatsApp = `🚚 *¡TU PEDIDO FUE ENVIADO!*\n\nHola! Te notificamos que tu Orden *#${order.id.slice(0, 8)}* ya se encuentra en camino a la dirección registrada (${order.address}).\n\n📩 Para recibir asistencia o realizar reclamos, comunícate por mail a: *soportekicks@gmail.com*`;
-        break;
-      case 'RESCHEDULED':
-        mensajeWhatsApp = `📅 *ENTREGA REPROGRAMADA*\n\nHola. Te informamos que la entrega de tu Orden *#${order.id.slice(0, 8)}* ha sido reprogramada.\n${customMessage ? `Detalle: ${customMessage}\n` : ''}Nos pondremos en contacto a la brevedad.\n\n📩 Para recibir asistencia o realizar reclamos, comunícate por mail a: *soportekicks@gmail.com*`;
-        break;
-      case 'DELIVERED':
-        mensajeWhatsApp = `🎉 *¡PEDIDO ENTREGADO!*\n\nTu Orden *#${order.id.slice(0, 8)}* figura como entregada con éxito. ¡Esperamos que disfrutes tu compra!\n\n📩 Para recibir asistencia o realizar reclamos, comunícate por mail a: *soportekicks@gmail.com*`;
-        break;
-      case 'CANCELLED':
-        mensajeWhatsApp = `❌ *PEDIDO CANCELADO*\n\nHola. Tu Orden *#${order.id.slice(0, 8)}* ha sido cancelada.\n${customMessage ? `Motivo: ${customMessage}\n` : ''}\n📩 Para recibir asistencia o realizar reclamos, comunícate por mail a: *soportekicks@gmail.com*`;
-        break;
-      default:
-        mensajeWhatsApp = `📌 Tu Orden *#${order.id.slice(0, 8)}* ha cambiado al estado: ${status}.\n\n📩 Para recibir asistencia o realizar reclamos, comunícate por mail a: *soportekicks@gmail.com*`;
-    }
-
-    await safeSendWhatsApp(order.phone, mensajeWhatsApp);
-    res.json({ success: true, message: `Estado actualizado a ${status} en BD. WhatsApp no disponible en serverless.`, order });
+    res.json({ success: true, message: `Estado actualizado a ${status} en BD Vercel.`, order });
   } catch (error) {
     console.error('Error al actualizar estado:', error);
     res.status(500).json({ error: 'Error al actualizar el estado de la orden' });
@@ -715,32 +734,33 @@ app.get('/api/returns', async (req, res) => {
 });
 
 app.post('/api/returns/approve', async (req, res) => {
-  const { requestId, shippingCost } = req.body;
+  const { requestId } = req.body;
+  const botUrl = process.env.BOT_SERVER_URL;
+
+  if (botUrl) {
+    try {
+      const response = await fetch(`${botUrl.replace(/\/$/, '')}/api/returns/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      console.warn('⚠️ No se pudo conectar con el bot local, procesando fallback en BD...');
+    }
+  }
+
   try {
     const config = await prisma.paymentConfig.findFirst().catch(() => null);
-    const finalCost = shippingCost !== undefined ? parseFloat(shippingCost) : (config?.returnShippingCost || 3500);
+    const finalCost = req.body.shippingCost !== undefined ? parseFloat(req.body.shippingCost) : (config?.returnShippingCost || 3500);
 
     const returnReq = await prisma.returnRequest.update({
       where: { id: requestId },
-      data: {
-        status: 'APPROVED_AWAITING_PAYMENT',
-        shippingCost: finalCost
-      }
+      data: { status: 'APPROVED_AWAITING_PAYMENT', shippingCost: finalCost }
     });
 
-    const formattedCost = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(finalCost);
-
-    const mensajeAprobado =
-      `✅ *SOLICITUD DE ${returnReq.type} APROBADA*\n\n` +
-      `Tu solicitud para la Orden *#${returnReq.orderId.slice(0, 8)}* ha sido aprobada con éxito.\n\n` +
-      `📦 *Costo de envío para la gestión:* *${formattedCost}*\n\n` +
-      `🏦 *Datos para abonar la gestión del envío:*\n` +
-      `Alias/CBU: *${config?.bankAlias || 'Consultar CBU por privado'}*\n\n` +
-      `Por favor, cuando realices la transferencia responde únicamente enviando la *foto o comprobante del pago* por este medio.`;
-
-    await safeSendWhatsApp(returnReq.phone, mensajeAprobado);
-
-    res.json({ success: true, message: 'Solicitud aprobada en BD. WhatsApp no disponible en serverless.', returnReq });
+    res.json({ success: true, message: 'Solicitud aprobada en BD Vercel.', returnReq });
   } catch (error) {
     console.error('Error al aprobar solicitud:', error);
     res.status(500).json({ error: 'Error al aprobar la solicitud' });
@@ -748,21 +768,29 @@ app.post('/api/returns/approve', async (req, res) => {
 });
 
 app.post('/api/returns/reject', async (req, res) => {
-  const { requestId, reason } = req.body;
+  const { requestId } = req.body;
+  const botUrl = process.env.BOT_SERVER_URL;
+
+  if (botUrl) {
+    try {
+      const response = await fetch(`${botUrl.replace(/\/$/, '')}/api/returns/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      console.warn('⚠️ No se pudo conectar con el bot local, procesando fallback en BD...');
+    }
+  }
+
   try {
     const returnReq = await prisma.returnRequest.update({
       where: { id: requestId },
       data: { status: 'REJECTED' }
     });
-
-    const mensajeRechazado =
-      `❌ *SOLICITUD DE ${returnReq.type} DENEGADA*\n\n` +
-      `Lamentablemente no podemos proceder con tu solicitud para la Orden *#${returnReq.orderId.slice(0, 8)}*.\n` +
-      `Motivo: ${reason || 'El producto no cumple con los requisitos de estado (debe conservarse en óptimas condiciones y con empaque original).'}\n\n` +
-      `📩 Consultas o soporte a: relaxmy89@gmail.com`;
-
-    await safeSendWhatsApp(returnReq.phone, mensajeRechazado);
-    res.json({ success: true, message: 'Solicitud rechazada en BD. WhatsApp no disponible en serverless.', returnReq });
+    res.json({ success: true, message: 'Solicitud rechazada en BD Vercel.', returnReq });
   } catch (error) {
     console.error('Error al rechazar solicitud:', error);
     res.status(500).json({ error: 'Error al rechazar la solicitud' });
@@ -771,24 +799,28 @@ app.post('/api/returns/reject', async (req, res) => {
 
 app.post('/api/returns/update-status', async (req, res) => {
   const { requestId, status } = req.body;
+  const botUrl = process.env.BOT_SERVER_URL;
+
+  if (botUrl) {
+    try {
+      const response = await fetch(`${botUrl.replace(/\/$/, '')}/api/returns/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      console.warn('⚠️ No se pudo conectar con el bot local, procesando fallback en BD...');
+    }
+  }
+
   try {
     const returnReq = await prisma.returnRequest.update({
       where: { id: requestId },
       data: { status }
     });
-
-    let mensajeWhatsApp = '';
-    if (status === 'SHIPPED') {
-      mensajeWhatsApp = `🚚 *¡TU ${returnReq.type} HA SIDO ENVIADO!*\n\nHola! Te notificamos que el paquete correspondiente a tu ${returnReq.type.toLowerCase()} para la Orden *#${returnReq.orderId.slice(0, 8)}* ya está en camino a tu domicilio.\n\n📩 Consultas a: *soportekicks@gmail.com*`;
-    } else if (status === 'DELIVERED') {
-      mensajeWhatsApp = `🎉 *¡${returnReq.type} ENTREGADO CON ÉXITO!*\n\nHola! Te confirmamos que la gestión de tu ${returnReq.type.toLowerCase()} (Orden *#${returnReq.orderId.slice(0, 8)}*) ha sido completada y entregada correctamente. ¡Muchas gracias por tu paciencia!\n\n📩 Consultas a: *soportekicks@gmail.com*`;
-    }
-
-    if (mensajeWhatsApp) {
-      await safeSendWhatsApp(returnReq.phone, mensajeWhatsApp);
-    }
-
-    res.json({ success: true, message: `Estado de la devolución actualizado a ${status}`, returnReq });
+    res.json({ success: true, message: `Estado de la devolución actualizado a ${status} en BD Vercel.`, returnReq });
   } catch (error) {
     console.error('Error al actualizar estado de la devolución:', error);
     res.status(500).json({ error: 'Error al actualizar el estado de la solicitud.' });
