@@ -2,17 +2,28 @@ require('dotenv').config();
 
 const { URL } = require('url');
 try {
-  const directUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
-  if (directUrl) {
-    const u = new URL(directUrl);
+  const dbUrl = process.env.DATABASE_URL || '';
+  const directUrl = process.env.DIRECT_URL || dbUrl;
+
+  if (dbUrl) {
+    const u = new URL(dbUrl);
     u.hostname = 'aws-0-us-west-2.pooler.supabase.com';
     u.port = '5432';
     if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
     if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
     u.searchParams.set('connection_limit', '5');
-    const finalUrl = u.toString();
-    process.env.DATABASE_URL = finalUrl;
-    process.env.DIRECT_URL = finalUrl;
+    process.env.DATABASE_URL = u.toString();
+  }
+
+  if (directUrl) {
+    const d = new URL(directUrl);
+    d.hostname = 'aws-0-us-west-2.pooler.supabase.com';
+    d.port = '5432';
+    if (!d.searchParams.has('sslmode')) d.searchParams.set('sslmode', 'require');
+    if (!d.searchParams.has('pgbouncer')) d.searchParams.set('pgbouncer', 'true');
+    process.env.DIRECT_URL = d.toString();
+  } else if (process.env.DATABASE_URL) {
+    process.env.DIRECT_URL = process.env.DATABASE_URL;
   }
 } catch (e) {
   console.warn('No se pudo ajustar URL de BD:', e.message);
